@@ -86,15 +86,16 @@ const BRAD=15;                       // bump cylinder radius
 const BFOOT=20;                      // bump foot disk radius
 const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
-const START={x:CCX, y:CMIN+1200, z:GAP*0.5}; // launcher, 1200um from south edge
+const START={x:CCX, y:CMIN+200, z:GAP*0.5}; // south edge of C-chip, over launcher
+const START_YAW=180; // facing north = inward toward Q-chip
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
 let spd=100, sIdx=3;
 const SPEEDS=[10,25,50,100,200,500,1000];
 let pos={...START};
-let yaw=0, pitch=0, inHit=false;
-let frozen=true; // hold still for 1.5s at start so gyro can calibrate
+let yaw=START_YAW, pitch=0, inHit=false;
+let frozen=true;
 
 // ── WebGL ──────────────────────────────────────────────
 const cv=document.getElementById('c');
@@ -168,13 +169,13 @@ const PF=prog(VS_F,FS_F), P3=prog(VS_3,FS_3);
 // Qbox: steel/slate blue sides
 // BG:  near-black deep indigo
 const COL={
-  nbBot: new Float32Array([0.95,0.93,0.85,1]),  // warm ivory
-  nbTop: new Float32Array([0.90,0.88,0.80,1]),  // slightly cooler
-  si:    new Float32Array([0.04,0.06,0.18,1]),  // midnight navy
-  bump:  new Float32Array([0.15,0.90,0.25,1]),  // acid green
-  foot:  new Float32Array([0.50,1.00,0.30,1]),  // bright lime foot disk
-  qbox:  new Float32Array([0.20,0.35,0.60,1]),  // steel blue
-  bg:    new Float32Array([0.00,0.00,0.03,1]),  // near-black indigo
+  nbBot: new Float32Array([0.78,0.82,0.90,1]),  // blue-silver (C-chip bottom Nb)
+  nbTop: new Float32Array([0.88,0.80,0.80,1]),  // red-silver  (Q-chip top Nb)
+  si:    new Float32Array([0.12,0.13,0.16,1]),  // dark gray silicon
+  bump:  new Float32Array([0.38,0.52,0.40,1]),  // muted grayish-green indium
+  foot:  new Float32Array([0.45,0.60,0.48,1]),  // slightly brighter foot disk
+  qbox:  new Float32Array([0.30,0.38,0.52,1]),  // steel blue Q-chip side
+  bg:    new Float32Array([0.00,0.00,0.02,1]),  // near-black
 };
 
 // ── MATRIX ────────────────────────────────────────────
@@ -438,28 +439,42 @@ setInterval(()=>{
   if(keys['ArrowUp']   ||keys['w']) pitch=Math.min(70,pitch+1);
   if(keys['ArrowDown'] ||keys['s']) pitch=Math.max(-70,pitch-1);
 },16);
-let tx0=null;
+
+// Touch: horizontal swipe = yaw, vertical swipe = pitch
+let tx0=null, ty0=null;
 window.addEventListener('touchstart',e=>{
   if(e.target.closest('.btn')||e.target.closest('#spd')||e.target.closest('#dashboard'))return;
-  tx0=e.touches[0].clientX;},{passive:true});
+  tx0=e.touches[0].clientX; ty0=e.touches[0].clientY;
+},{passive:true});
 window.addEventListener('touchmove',e=>{
-  if(tx0===null)return;yaw+=(e.touches[0].clientX-tx0)*0.15;tx0=e.touches[0].clientX;},{passive:true});
-window.addEventListener('touchend',()=>tx0=null);
+  if(tx0===null)return;
+  const dx=e.touches[0].clientX-tx0;
+  const dy=e.touches[0].clientY-ty0;
+  yaw   += dx*0.15;
+  pitch  = Math.max(-70,Math.min(70, pitch - dy*0.15)); // drag up = pitch up
+  tx0=e.touches[0].clientX; ty0=e.touches[0].clientY;
+},{passive:true});
+window.addEventListener('touchend',()=>{tx0=null;ty0=null;});
 
 // ── GYRO — real airplane in LANDSCAPE ─────────────────
-// LANDSCAPE: phone rotated 90°, screen facing you.
-// We CALIBRATE on first reading — whatever angle you hold = straight+level.
-// After that: roll right → slow right turn, tilt nose = pitch.
-// Boeing 747 turn rate: ~1.5°/sec at standard rate. We do 2°/sec max.
+// Phone landscape: screen faces you, held like a steering wheel.
+// gamma = left/right roll axis  → controls YAW (bank to turn)
+// beta  = forward/back tilt     → controls PITCH
+//   In landscape-left: beta ≈ 90 when upright.
+//   Tilt nose forward (beta decreases) = nose DOWN = negative pitch
+//   Tilt nose back    (beta increases) = nose UP   = positive pitch
+// For gamma (roll):
+//   Tilt top-right (gamma positive) = bank right = turn RIGHT (yaw+)
+//   Tilt top-left  (gamma negative) = bank left  = turn LEFT  (yaw-)
 
 let gyroCalibrated=false;
 let calBeta=0, calGamma=0;
 let fBeta=0, fGamma=0;
-const SMOOTH=0.12; // low-pass smoothing
+const SMOOTH=0.10;
 
 function toggleGyro(){
   gyroOn=!gyroOn;
-  if(gyroOn) gyroCalibrated=false; // recalibrate each time
+  if(gyroOn) gyroCalibrated=false;
   document.getElementById('bgy').classList.toggle('on',gyroOn);
   document.getElementById('bgy').textContent=gyroOn?'✈ GYRO ON':'✈ GYRO';
   if(gyroOn){
@@ -469,15 +484,15 @@ function toggleGyro(){
     else go();
   } else {
     window.removeEventListener('deviceorientation',onOri);
-    pitch=0; // level out when gyro off
+    pitch=0;
   }
 }
 
 function onOri(e){
   if(!gyroOn) return;
-  const b=e.beta??0, g=e.gamma??0;
+  const b=e.beta??90, g=e.gamma??0;
 
-  // Calibrate: first reading defines "straight and level"
+  // First reading = calibration (your current hold = straight+level)
   if(!gyroCalibrated){
     calBeta=b; calGamma=g;
     fBeta=b; fGamma=g;
@@ -485,30 +500,27 @@ function onOri(e){
     return;
   }
 
-  // Low-pass filter raw values
-  fBeta  += SMOOTH*(b  - fBeta);
-  fGamma += SMOOTH*(g  - fGamma);
+  fBeta  += SMOOTH*(b - fBeta);
+  fGamma += SMOOTH*(g - fGamma);
 
-  // Relative to calibration
-  const relRoll  = fGamma - calGamma; // right tilt = positive
-  const relPitch = fBeta  - calBeta;  // nose up = positive (tilt back)
+  const relRoll  = fGamma - calGamma; // +ve = tilted right
+  const relPitch = fBeta  - calBeta;  // +ve = tilted back (nose up)
 
-  // TURN: Boeing-style — very gradual. Dead zone ±5°.
-  // Max bank ~30° → max turn rate ~2°/sec = 0.033°/frame at 60fps
+  // YAW: Boeing-style rate turn. Dead zone ±5°. Max ~2°/s at 30° bank.
   const dead=5;
-  const bank=relRoll;
-  if(Math.abs(bank)>dead){
-    const rate=(Math.abs(bank)-dead)/30; // 0..1 as bank goes 5°..35°
-    yaw += Math.sign(bank)*Math.min(rate,1)*0.033;
+  if(Math.abs(relRoll)>dead){
+    const rate=Math.min((Math.abs(relRoll)-dead)/25, 1.0);
+    yaw += Math.sign(relRoll)*rate*0.035;
   }
 
-  // PITCH: ±30° nose movement → ±45° pitch angle. Smooth.
-  pitch = Math.max(-50, Math.min(50, relPitch * 1.5));
+  // PITCH: forward tilt (relPitch negative) = nose down = negative pitch
+  // Invert so physics matches intuition
+  pitch = Math.max(-55, Math.min(55, relPitch * 1.4));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
 function resetPos(){
-  pos={...START};yaw=0;pitch=0;
+  pos={...START};yaw=START_YAW;pitch=0;
   frozen=true; gyroCalibrated=false;
   setTimeout(()=>frozen=false, 1500);
 }
