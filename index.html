@@ -88,8 +88,8 @@ const BRAD=15;                       // bump cylinder radius
 const BFOOT=20;                      // bump foot disk radius
 const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
-const START={x:CCX, y:CMIN+200, z:GAP*0.5}; // south edge, over launcher
-const START_YAW=0; // 0 = looking toward +Y = into chip. Movement: dy=-cos(yaw) so yaw=0 goes toward +Y ✓
+const START={x:CCX, y:QMIN-1500, z:GAP*0.5}; // just outside Q-chip south, over launcher
+const START_YAW=180; // yaw=180 → dx=sin(180)=0, dy=-cos(180)=+1 → moves toward +Y = into chip ✓
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
@@ -399,13 +399,13 @@ function fly(ts){
   let nx=pos.x+(-Math.sin(yr)*Math.cos(pr))*spd*dt;
   let ny=pos.y+(-Math.cos(yr)*Math.cos(pr))*spd*dt;
   let nz=pos.z+(Math.sin(pr))*spd*dt;
-  let hit=false;
-  if(nx<CMIN+PRAD){nx=CMIN+PRAD;hit=true;}
-  if(nx>CMAX-PRAD){nx=CMAX-PRAD;hit=true;}
-  if(ny<CMIN+PRAD){ny=CMIN+PRAD;hit=true;}
-  if(ny>CMAX-PRAD){ny=CMAX-PRAD;hit=true;}
-  if(nz<PRAD){nz=PRAD;hit=true;}
-  if(nz>GAP-PRAD){nz=GAP-PRAD;hit=true;}
+  let hit=false, bounceZ=0;
+  if(nx<CMIN+PRAD){nx=CMIN+PRAD+30;hit=true;}
+  if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
+  if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
+  if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
+  if(nz<PRAD){nz=PRAD+30;pitch=Math.abs(pitch);hit=true;}       // bounce up from floor
+  if(nz>GAP-PRAD){nz=GAP-PRAD-30;pitch=-Math.abs(pitch);hit=true;} // bounce down from ceiling
   if(data){
     for(const [bx,by] of data.bumps){
       const d=Math.hypot(nx-bx,ny-by);
@@ -470,8 +470,8 @@ window.addEventListener('touchend',()=>{tx0=null;ty0=null;});
 //   Tilt top-left  (gamma negative) = bank left  = turn LEFT  (yaw-)
 
 let gyroCalibrated=false;
-let calBeta=0, calGamma=0;
-let fBeta=0, fGamma=0;
+let calAlpha=0, calBeta=0;
+let fAlpha=0, fBeta=0;
 const SMOOTH=0.10;
 const dbg=document.getElementById('gdbg');
 
@@ -494,33 +494,43 @@ function toggleGyro(){
 // ── GYRO DEBUG ────────────────────────────────────────
 function onOri(e){
   if(!gyroOn) return;
-  const b=e.beta??90, g=e.gamma??0, a=e.alpha??0;
+  const a=e.alpha??0, b=e.beta??0, g=e.gamma??0;
 
-  // Show raw values always so we can debug
-  dbg.textContent=`α:${a.toFixed(1)} β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrel β:${(b-(calBeta||b)).toFixed(1)} γ:${(g-(calGamma||g)).toFixed(1)}`;
+  dbg.textContent=`α:${a.toFixed(1)} β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrelα:${angDiff(a,calAlpha).toFixed(1)} relβ:${(b-calBeta).toFixed(1)}`;
 
   if(!gyroCalibrated){
-    calBeta=b; calGamma=g;
-    fBeta=b; fGamma=g;
+    calAlpha=a; calBeta=b;
+    fAlpha=a; fBeta=b;
     gyroCalibrated=true;
     return;
   }
 
+  fAlpha = lerpAngle(fAlpha, a, SMOOTH);
   fBeta  += SMOOTH*(b - fBeta);
-  fGamma += SMOOTH*(g - fGamma);
 
-  const relRoll  = fGamma - calGamma;
-  const relPitch = fBeta  - calBeta;
-
-  // YAW
-  const dead=5;
-  if(Math.abs(relRoll)>dead){
-    const rate=Math.min((Math.abs(relRoll)-dead)/25, 1.0);
-    yaw += Math.sign(relRoll)*rate*0.035;
+  // YAW: alpha is compass heading — rotates freely as you turn phone left/right
+  // Turn phone left (counterclockwise from above) → alpha decreases → turn left
+  const relYaw = angDiff(fAlpha, calAlpha); // signed angle difference
+  const dead=4;
+  if(Math.abs(relYaw)>dead){
+    const rate=Math.min((Math.abs(relYaw)-dead)/20, 1.0);
+    yaw += Math.sign(relYaw)*rate*0.04;
   }
 
-  // PITCH: negate so forward tilt = nose down
+  // PITCH: beta — tilt forward (nose down) = pitch negative
+  const relPitch = fBeta - calBeta;
   pitch = Math.max(-55, Math.min(55, -relPitch * 1.4));
+}
+
+// Signed angle difference handling 0/360 wrap
+function angDiff(a,b){
+  let d=a-b;
+  while(d>180)d-=360;
+  while(d<-180)d+=360;
+  return d;
+}
+function lerpAngle(cur,tgt,t){
+  return cur+angDiff(tgt,cur)*t;
 }
 
 // ── CONTROLS ──────────────────────────────────────────
@@ -554,7 +564,18 @@ function lp(p,m){document.getElementById('pfill').style.width=p+'%';
   document.getElementById('lstatus').textContent=m;}
 async function init(){
   lp(5,'Fetching geometry…');
-  const r=await fetch('chip_data.json');
+  let r;
+  try {
+    const ctrl=new AbortController();
+    const tid=setTimeout(()=>ctrl.abort(),15000);
+    r=await fetch('chip_data.json?v=11',{signal:ctrl.signal});
+    clearTimeout(tid);
+    if(!r.ok) throw new Error(`HTTP ${r.status} — chip_data.json not found. Upload it to GitHub!`);
+  } catch(e){
+    lp(0,'❌ '+e.message);
+    document.getElementById('lstatus').style.color='#f44';
+    return;
+  }
   lp(30,'Parsing…');
   data=await r.json();
   lp(55,'GPU: layers…');
@@ -572,7 +593,7 @@ async function init(){
   lp(100,'Ready — hold phone level…');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
-    setTimeout(()=>{ frozen=false; },1500); // 1.5s to settle gyro + see scene
+    setTimeout(()=>{ frozen=false; },1500);
     requestAnimationFrame(fly);
   },250);
 }
