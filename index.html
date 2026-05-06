@@ -75,7 +75,7 @@ canvas{display:block;}
     <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
   </div>
   <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
-  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v11</div>
+  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v13</div>
 </div>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────
@@ -348,13 +348,18 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
 
 function render(){
   const W=cv.width,H=cv.height;
-  const ex=pos.x,ey=pos.z,ez=pos.y;
+  const ex=pos.x, ey=pos.z, ez=pos.y;
   const pc=Math.max(-65,Math.min(65,pitch));
   if(mode3D){
-    renderEye(ex,ey,ez,yaw,pc,0,W/2,H);
-    renderEye(ex,ey,ez,yaw,pc,W/2,W/2,H);
+    // IPD offset in world units (~63mm real = ~630um at chip scale feels good)
+    const IPD=400;
+    const yr=yaw*Math.PI/180;
+    // Perpendicular to forward direction (right vector)
+    const rx= Math.cos(yr), rz=-Math.sin(yr);
+    renderEye(ex-rx*IPD/2, ey, ez-rz*IPD/2, yaw, pc, 0,   W/2, H);
+    renderEye(ex+rx*IPD/2, ey, ez+rz*IPD/2, yaw, pc, W/2, W/2, H);
   } else {
-    renderEye(ex,ey,ez,yaw,pc,0,W,H);
+    renderEye(ex, ey, ez, yaw, pc, 0, W, H);
   }
   drawHorizon(pc);
   updateHUD();
@@ -390,36 +395,37 @@ function updateHUD(){
 }
 
 // ── PHYSICS ───────────────────────────────────────────
+// Player is LOCKED to GAP/2 altitude — no vertical movement
+// Pitch only affects camera look direction, not position
 const PRAD=4;
 let lastT=null;
 function fly(ts){
   const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
   if(!frozen){
-    const yr=yaw*Math.PI/180,pr=pitch*Math.PI/180;
-  let nx=pos.x+(-Math.sin(yr)*Math.cos(pr))*spd*dt;
-  let ny=pos.y+(-Math.cos(yr)*Math.cos(pr))*spd*dt;
-  let nz=pos.z+(Math.sin(pr))*spd*dt;
-  let hit=false, bounceZ=0;
-  if(nx<CMIN+PRAD){nx=CMIN+PRAD+30;hit=true;}
-  if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
-  if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
-  if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
-  if(nz<PRAD){nz=PRAD+30;pitch=Math.abs(pitch);hit=true;}       // bounce up from floor
-  if(nz>GAP-PRAD){nz=GAP-PRAD-30;pitch=-Math.abs(pitch);hit=true;} // bounce down from ceiling
-  if(data){
-    for(const [bx,by] of data.bumps){
-      const d=Math.hypot(nx-bx,ny-by);
-      if(d<BRAD+PRAD){
-        const a=Math.atan2(ny-by,nx-bx);
-        nx=bx+(BRAD+PRAD)*Math.cos(a);
-        ny=by+(BRAD+PRAD)*Math.sin(a);
-        hit=true;break;
+    const yr=yaw*Math.PI/180;
+    // Move only horizontally — no vertical movement from pitch
+    let nx=pos.x+(-Math.sin(yr))*spd*dt;
+    let ny=pos.y+(-Math.cos(yr))*spd*dt;
+    let nz=GAP*0.5; // always locked to midpoint
+    let hit=false;
+    if(nx<CMIN+PRAD){nx=CMIN+PRAD+30;hit=true;}
+    if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
+    if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
+    if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
+    if(data){
+      for(const [bx,by] of data.bumps){
+        const d=Math.hypot(nx-bx,ny-by);
+        if(d<BRAD+PRAD){
+          const a=Math.atan2(ny-by,nx-bx);
+          nx=bx+(BRAD+PRAD+30)*Math.cos(a);
+          ny=by+(BRAD+PRAD+30)*Math.sin(a);
+          hit=true;break;
+        }
       }
     }
+    pos.x=nx;pos.y=ny;pos.z=nz;
+    if(hit)doHit();
   }
-  pos.x=nx;pos.y=ny;pos.z=nz;
-  if(hit)doHit();
-  } // end if(!frozen)
   render();
   requestAnimationFrame(fly);
 }
@@ -458,21 +464,20 @@ window.addEventListener('touchmove',e=>{
 },{passive:true});
 window.addEventListener('touchend',()=>{tx0=null;ty0=null;});
 
-// ── GYRO — real airplane in LANDSCAPE ─────────────────
-// Phone landscape: screen faces you, held like a steering wheel.
-// gamma = left/right roll axis  → controls YAW (bank to turn)
-// beta  = forward/back tilt     → controls PITCH
-//   In landscape-left: beta ≈ 90 when upright.
-//   Tilt nose forward (beta decreases) = nose DOWN = negative pitch
-//   Tilt nose back    (beta increases) = nose UP   = positive pitch
-// For gamma (roll):
-//   Tilt top-right (gamma positive) = bank right = turn RIGHT (yaw+)
-//   Tilt top-left  (gamma negative) = bank left  = turn LEFT  (yaw-)
+// ── GYRO — LANDSCAPE LEFT ─────────────────────────────
+// Phone held landscape-left (home button on right):
+// ROTATE phone left/right around vertical axis → BETA changes
+//   level forward = ~90°, rotate left → beta increases, rotate right → beta decreases
+// TILT phone nose up/down → GAMMA changes  
+//   level = ~0°, tilt nose up → gamma goes negative, nose down → positive
+//
+// We use DIRECT yaw mapping (not rate): turn phone = turn view
+// This means yaw IS the phone orientation — intuitive like VR headset
 
 let gyroCalibrated=false;
-let calAlpha=0, calBeta=0;
-let fAlpha=0, fBeta=0;
-const SMOOTH=0.10;
+let calBeta=0, calGamma=0;
+let fBeta=0, fGamma=0;
+const SMOOTH=0.08;
 const dbg=document.getElementById('gdbg');
 
 function toggleGyro(){
@@ -491,46 +496,32 @@ function toggleGyro(){
   }
 }
 
-// ── GYRO DEBUG ────────────────────────────────────────
 function onOri(e){
   if(!gyroOn) return;
-  const a=e.alpha??0, b=e.beta??0, g=e.gamma??0;
+  const a=e.alpha??0, b=e.beta??90, g=e.gamma??0;
 
-  dbg.textContent=`α:${a.toFixed(1)} β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrelα:${angDiff(a,calAlpha).toFixed(1)} relβ:${(b-calBeta).toFixed(1)}`;
+  dbg.textContent=`α:${a.toFixed(0)} β:${b.toFixed(0)} γ:${g.toFixed(0)}`;
 
   if(!gyroCalibrated){
-    calAlpha=a; calBeta=b;
-    fAlpha=a; fBeta=b;
+    calBeta=b; calGamma=g;
+    fBeta=b; fGamma=g;
     gyroCalibrated=true;
     return;
   }
 
-  fAlpha = lerpAngle(fAlpha, a, SMOOTH);
   fBeta  += SMOOTH*(b - fBeta);
+  fGamma += SMOOTH*(g - fGamma);
 
-  // YAW: alpha is compass heading — rotates freely as you turn phone left/right
-  // Turn phone left (counterclockwise from above) → alpha decreases → turn left
-  const relYaw = angDiff(fAlpha, calAlpha); // signed angle difference
-  const dead=4;
-  if(Math.abs(relYaw)>dead){
-    const rate=Math.min((Math.abs(relYaw)-dead)/20, 1.0);
-    yaw += Math.sign(relYaw)*rate*0.04;
-  }
+  // YAW: beta changes as you rotate phone left/right
+  // Rotate right → beta decreases from ~90 → yaw increases (turn right)
+  // Multiply by -2 so ±45° phone rotation = ±90° view turn
+  const relBeta = fBeta - calBeta;
+  yaw = START_YAW + (-relBeta * 2.0);
 
-  // PITCH: beta — tilt forward (nose down) = pitch negative
-  const relPitch = fBeta - calBeta;
-  pitch = Math.max(-55, Math.min(55, -relPitch * 1.4));
-}
-
-// Signed angle difference handling 0/360 wrap
-function angDiff(a,b){
-  let d=a-b;
-  while(d>180)d-=360;
-  while(d<-180)d+=360;
-  return d;
-}
-function lerpAngle(cur,tgt,t){
-  return cur+angDiff(tgt,cur)*t;
+  // PITCH: gamma changes as you tilt nose up/down
+  // Tilt nose down → gamma increases → pitch down (negative)
+  const relGamma = fGamma - calGamma;
+  pitch = Math.max(-70, Math.min(70, -relGamma * 1.5));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
