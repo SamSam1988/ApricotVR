@@ -95,7 +95,7 @@ canvas { display:block; }
 // ═══════════════════════════════════════════════════════
 const C_SIZE   = 16400;   // C-chip (bottom) side length
 const Q_SIZE   = 11500;   // Q-chip (top)  side length
-const GAP      = 40;      // um between Nb surfaces (= indium bump height)
+const GAP      = 80;      // DOUBLED: 80 um between Nb surfaces
 const NB_T     = 0.5;     // Nb thickness um
 const CHIP_CX  = 8300;    // center x
 const CHIP_CY  = 8300;    // center y
@@ -136,24 +136,60 @@ canvas.height = window.innerHeight;
 gl = canvas.getContext('webgl', { antialias:true });
 if (!gl) alert('WebGL not supported');
 
-// ─── Shaders ───────────────────────────────────────────
+// ─── Shaders (with point-light from player) ────────────
 const vsFlat = `
 attribute vec2 aPos;
 uniform mat4 uMVP;
 uniform float uZ;
+varying vec3 vWorld;
 void main(){
+  vWorld = vec3(aPos.x, uZ, aPos.y);
   gl_Position = uMVP * vec4(aPos.x, uZ, aPos.y, 1.0);
 }`;
 
 const fsFlatColor = `
 precision mediump float;
 uniform vec4 uColor;
-void main(){ gl_FragColor = uColor; }`;
+uniform vec3 uLight;   // player world pos
+uniform vec3 uNormal;  // face normal
+varying vec3 vWorld;
+void main(){
+  vec3 toL = uLight - vWorld;
+  float dist = length(toL);
+  float atten = 1.0 / (1.0 + dist*dist * 0.0000004);
+  float diff = max(dot(normalize(toL), normalize(uNormal)), 0.0);
+  float ambient = 0.08;
+  float light = ambient + diff * atten * 1.8;
+  gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+}`;
 
 const vsCylinder = `
 attribute vec3 aPos;
 uniform mat4 uMVP;
-void main(){ gl_Position = uMVP * vec4(aPos,1.0); }`;
+varying vec3 vWorld;
+void main(){
+  vWorld = aPos;
+  gl_Position = uMVP * vec4(aPos,1.0);
+}`;
+
+const fsCylinder = `
+precision mediump float;
+uniform vec4 uColor;
+uniform vec3 uLight;
+uniform vec3 uCylCenter; // for bumps: approximate normal from center
+varying vec3 vWorld;
+void main(){
+  vec3 toL = uLight - vWorld;
+  float dist = length(toL);
+  float atten = 1.0 / (1.0 + dist*dist * 0.0000004);
+  // approximate normal: horizontal outward from cylinder center
+  vec3 n = normalize(vec3(vWorld.x - uCylCenter.x, 0.0, vWorld.z - uCylCenter.z));
+  if(length(n) < 0.01) n = vec3(0,1,0); // caps
+  float diff = max(dot(normalize(toL), n), 0.0);
+  float ambient = 0.06;
+  float light = ambient + diff * atten * 2.2;
+  gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+}`;
 
 function mkShader(gl, type, src){
   const s = gl.createShader(type);
@@ -171,7 +207,7 @@ function mkProg(gl, vs, fs){
 }
 
 const flatProg = mkProg(gl, vsFlat, fsFlatColor);
-const cylProg  = mkProg(gl, vsCylinder, fsFlatColor);
+const cylProg  = mkProg(gl, vsCylinder, fsCylinder);
 
 // ─── GPU Buffers ────────────────────────────────────────
 let bufL130verts, bufL130idx, cntL130;
@@ -186,7 +222,7 @@ function buildCylinderBatch(bumps){
   const vArr = [], iArr = [];
   let base = 0;
   const r = 20; // um radius
-  const bot = 0, top = GAP;
+  const bot = 0, top = GAP; // uses updated GAP=80
   for (const [cx,cy] of bumps){
     // bottom circle + top circle + sides
     for (let s=0;s<SEGS;s++){
@@ -276,13 +312,13 @@ function buildMVP(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,fov,asp){
   return MVP;
 }
 
-// colors (RGBA)
-const COL_NB_BOT  = [0.7,  0.75, 0.85, 1.0]; // silver-blue Nb bottom
-const COL_NB_TOP  = [0.65, 0.7,  0.8,  1.0]; // slightly different top
-const COL_SI_DARK = [0.15, 0.12, 0.18, 1.0]; // dark silicon
-const COL_IN_BUMP = [0.95, 0.85, 0.1,  1.0]; // yellow gold indium
-const COL_QCHIP   = [0.08, 0.06, 0.12, 1.0]; // dark Si Q-chip side
-const COL_SKY_BOT = [0.02, 0.02, 0.06, 1.0]; // background
+// colors (RGBA) — dark environment, player casts light
+const COL_NB_BOT  = [0.82, 0.85, 0.92, 1.0]; // light grey-silver Nb bottom
+const COL_NB_TOP  = [0.78, 0.82, 0.90, 1.0]; // light grey-silver Nb top
+const COL_SI_DARK = [0.06, 0.09, 0.18, 1.0]; // deep blue-grey silicon
+const COL_IN_BUMP = [1.00, 0.88, 0.15, 1.0]; // bright yellow indium
+const COL_QCHIP   = [0.05, 0.07, 0.15, 1.0]; // dark blue-grey Si side
+const COL_SKY_BOT = [0.00, 0.00, 0.02, 1.0]; // near-black deep space
 
 function setUniform4f(prog,name,v){
   gl.uniform4f(gl.getUniformLocation(prog,name),v[0],v[1],v[2],v[3]);
@@ -294,11 +330,20 @@ function setUniform1f(prog,name,v){
   gl.uniform1f(gl.getUniformLocation(prog,name),v);
 }
 
-function drawFlatLayer(buf, yHeight, color){
+function setUniform3f(prog,name,x,y,z){
+  gl.uniform3f(gl.getUniformLocation(prog,name),x,y,z);
+}
+
+// Current player world pos for lighting (set before each draw)
+let lightX=0,lightY=0,lightZ=0;
+
+function drawFlatLayer(buf, yHeight, color, normalY){
   gl.useProgram(flatProg);
   setUniformMat(flatProg,'uMVP',MVP);
   setUniform4f(flatProg,'uColor',color);
   setUniform1f(flatProg,'uZ', yHeight);
+  setUniform3f(flatProg,'uLight', lightX,lightY,lightZ);
+  setUniform3f(flatProg,'uNormal', 0, normalY||1, 0);
   const loc = gl.getAttribLocation(flatProg,'aPos');
   gl.bindBuffer(gl.ARRAY_BUFFER, buf.vb);
   gl.enableVertexAttribArray(loc);
@@ -312,6 +357,8 @@ function drawBumps(mvp){
   gl.useProgram(cylProg);
   setUniformMat(cylProg,'uMVP',mvp);
   setUniform4f(cylProg,'uColor',COL_IN_BUMP);
+  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
+  setUniform3f(cylProg,'uCylCenter', lightX,lightY,lightZ); // approximate — good enough
   const loc = gl.getAttribLocation(cylProg,'aPos');
   gl.bindBuffer(gl.ARRAY_BUFFER, bumpVerts);
   gl.enableVertexAttribArray(loc);
@@ -322,11 +369,12 @@ function drawBumps(mvp){
 
 // Draw Q-chip as a solid box (for when flying outside)
 function drawQChipBox(mvp){
-  // We'll draw it as a simple quad outline on top; full box geometry cached
   if(!qboxVerts) return;
   gl.useProgram(cylProg);
   setUniformMat(cylProg,'uMVP',mvp);
   setUniform4f(cylProg,'uColor',COL_QCHIP);
+  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
+  setUniform3f(cylProg,'uCylCenter', CHIP_CX, GAP+150, CHIP_CY);
   const loc = gl.getAttribLocation(cylProg,'aPos');
   gl.bindBuffer(gl.ARRAY_BUFFER, qboxVerts);
   gl.enableVertexAttribArray(loc);
@@ -372,27 +420,20 @@ function renderEye(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,vpX,vpW,vpH){
   const asp = vpW/vpH;
   buildMVP(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,70,asp);
 
-  // 1. Bottom Nb layer (layer 130) — holes = transparent, rest = Nb
-  //    We draw the SOLID areas (the actual Nb metal)
-  //    The holes (polygons in layer 130) reveal silicon below
-  // Strategy: draw silicon floor first, then draw Nb on top using polygon geometry
-  
-  // Silicon floor (C-chip, big square, below everything)
+  // Player is the light source
+  lightX=eyeX; lightY=eyeY; lightZ=eyeZ;
+
+  // Silicon floor
   drawSiliconFloor();
-  
-  // Bottom Nb: draw the polygon regions as Nb surface (bottom face at y=0)
-  if(bufL130verts) drawFlatLayer(bufL130verts, 0, COL_NB_BOT);
 
-  // Top Nb: layer 2 (y = GAP), only over Q-chip area
-  if(bufL2verts)   drawFlatLayer(bufL2verts,   GAP, COL_NB_TOP);
+  // Bottom Nb: normal points UP (+Y) toward player
+  if(bufL130verts) drawFlatLayer(bufL130verts, 0, COL_NB_BOT, 1);
 
-  // Layer 3 on top (additional top Nb features, y = GAP)
-  if(bufL3verts)   drawFlatLayer(bufL3verts,   GAP, COL_NB_TOP);
+  // Top Nb: normal points DOWN (-Y) toward player
+  if(bufL2verts)   drawFlatLayer(bufL2verts,   GAP, COL_NB_TOP, -1);
+  if(bufL3verts)   drawFlatLayer(bufL3verts,   GAP, COL_NB_TOP, -1);
 
-  // Q-chip silicon box (visible from sides when outside)
   drawQChipBox(MVP);
-
-  // Indium bumps
   drawBumps(MVP);
 }
 
@@ -410,6 +451,8 @@ function drawSiliconFloor(){
   gl.useProgram(cylProg);
   setUniformMat(cylProg,'uMVP',MVP);
   setUniform4f(cylProg,'uColor',COL_SI_DARK);
+  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
+  setUniform3f(cylProg,'uCylCenter', CHIP_CX, -NB_T, CHIP_CY);
   const loc=gl.getAttribLocation(cylProg,'aPos');
   gl.bindBuffer(gl.ARRAY_BUFFER,sfVerts); gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
@@ -482,11 +525,11 @@ function fly(ts){
   const dt = lastT ? Math.min((ts-lastT)/1000, 0.05) : 0.016;
   lastT = ts;
 
-  // Direction from yaw+pitch
+  // Direction from yaw+pitch — fly FORWARD into the view
   const yR = yaw*Math.PI/180;
   const pR = pitch*Math.PI/180;
-  const dx = Math.sin(yR)*Math.cos(pR);
-  const dy = Math.cos(yR)*Math.cos(pR);
+  const dx = -Math.sin(yR)*Math.cos(pR);
+  const dy = -Math.cos(yR)*Math.cos(pR);
   const dz = Math.sin(pR);
 
   const vx = dx*speed*dt;
@@ -577,7 +620,10 @@ window.addEventListener('touchmove', e=>{
 }, {passive:true});
 window.addEventListener('touchend', ()=>touchStartX=null);
 
-// Device orientation (gyro)
+// Device orientation (gyro) — AIRPLANE style
+// Phone held landscape: gamma = bank (left/right tilt) → yaw rate
+// beta = forward/back tilt → pitch
+let lastGyroTs = null;
 function toggleGyro(){
   gyroActive=!gyroActive;
   document.getElementById('btn-gyro').classList.toggle('active', gyroActive);
@@ -589,16 +635,28 @@ function toggleGyro(){
     } else {
       window.addEventListener('deviceorientation', onOrientation);
     }
-    gyroYawBase = devAlpha; gyroPitchBase = devBeta;
   } else {
     window.removeEventListener('deviceorientation', onOrientation);
   }
 }
+
 function onOrientation(e){
-  devAlpha=e.alpha||0; devBeta=e.beta||0; devGamma=e.gamma||0;
   if(!gyroActive) return;
-  yaw   = -(devGamma);   // phone tilt left/right
-  pitch = Math.max(-60, Math.min(60, (devBeta-90)*0.5));
+  // gamma: phone roll [-90..90] — tilting right = positive = turn right
+  // beta:  phone tilt forward/back [-180..180]
+  const bank  = e.gamma || 0;  // tilt left/right → yaw rate
+  const tilt  = e.beta  || 0;  // forward tilt → pitch
+
+  // Airplane: banking changes yaw continuously (turn rate proportional to bank)
+  // Dead zone ±5 deg
+  const deadZone = 5;
+  if(Math.abs(bank) > deadZone){
+    const rate = (bank - Math.sign(bank)*deadZone) * 0.12; // deg/frame
+    yaw += rate;
+  }
+  // Pitch: phone held ~90° forward (landscape), center = 90°
+  // tilt forward of 90° → pitch up
+  pitch = Math.max(-70, Math.min(70, -(tilt - 90) * 0.6));
 }
 
 // ═══════════════════════════════════════════════════════
