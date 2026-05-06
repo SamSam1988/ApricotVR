@@ -75,6 +75,7 @@ canvas{display:block;}
     <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
   </div>
   <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
+  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v11</div>
 </div>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────
@@ -87,8 +88,8 @@ const BRAD=15;                       // bump cylinder radius
 const BFOOT=20;                      // bump foot disk radius
 const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
-const START={x:CCX, y:CMIN+200, z:GAP*0.5}; // south edge of C-chip, over launcher
-const START_YAW=180; // facing north = inward toward Q-chip
+const START={x:CCX, y:CMIN+200, z:GAP*0.5}; // south edge, over launcher
+const START_YAW=0; // 0 = looking toward +Y = into chip. Movement: dy=-cos(yaw) so yaw=0 goes toward +Y ✓
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
@@ -491,8 +492,6 @@ function toggleGyro(){
 }
 
 // ── GYRO DEBUG ────────────────────────────────────────
-let dbg=document.getElementById('gdbg');
-
 function onOri(e){
   if(!gyroOn) return;
   const b=e.beta??90, g=e.gamma??0, a=e.alpha??0;
