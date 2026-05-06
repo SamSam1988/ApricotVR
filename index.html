@@ -86,7 +86,7 @@ const BRAD=15;                       // bump cylinder radius
 const BFOOT=20;                      // bump foot disk radius
 const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
-const START={x:CCX, y:CMIN+500, z:GAP*0.5}; // launcher start
+const START={x:CCX, y:CMIN+1200, z:GAP*0.5}; // launcher, 1200um from south edge
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
@@ -94,6 +94,7 @@ let spd=100, sIdx=3;
 const SPEEDS=[10,25,50,100,200,500,1000];
 let pos={...START};
 let yaw=0, pitch=0, inHit=false;
+let frozen=true; // hold still for 1.5s at start so gyro can calibrate
 
 // ── WebGL ──────────────────────────────────────────────
 const cv=document.getElementById('c');
@@ -390,7 +391,8 @@ const PRAD=4;
 let lastT=null;
 function fly(ts){
   const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
-  const yr=yaw*Math.PI/180,pr=pitch*Math.PI/180;
+  if(!frozen){
+    const yr=yaw*Math.PI/180,pr=pitch*Math.PI/180;
   let nx=pos.x+(-Math.sin(yr)*Math.cos(pr))*spd*dt;
   let ny=pos.y+(-Math.cos(yr)*Math.cos(pr))*spd*dt;
   let nz=pos.z+(Math.sin(pr))*spd*dt;
@@ -414,6 +416,7 @@ function fly(ts){
   }
   pos.x=nx;pos.y=ny;pos.z=nz;
   if(hit)doHit();
+  } // end if(!frozen)
   render();
   requestAnimationFrame(fly);
 }
@@ -444,16 +447,19 @@ window.addEventListener('touchmove',e=>{
 window.addEventListener('touchend',()=>tx0=null);
 
 // ── GYRO — real airplane in LANDSCAPE ─────────────────
-// Phone in landscape-left: screen faces you, home button to the right.
-// Device axes in this orientation:
-//   beta  ≈ 90° when upright (ranging ~0-180 as you tilt fwd/back)
-//   gamma ≈ 0° when level  (ranging ±90 as you roll left/right)
-// Airplane model:
-//   Roll phone RIGHT (top toward right, gamma increases) → bank right → yaw RIGHT
-//   Tilt phone forward (nose down, beta decreases from 90) → pitch DOWN
-//   Tilt phone back (nose up,  beta increases from 90)  → pitch UP
+// LANDSCAPE: phone rotated 90°, screen facing you.
+// We CALIBRATE on first reading — whatever angle you hold = straight+level.
+// After that: roll right → slow right turn, tilt nose = pitch.
+// Boeing 747 turn rate: ~1.5°/sec at standard rate. We do 2°/sec max.
+
+let gyroCalibrated=false;
+let calBeta=0, calGamma=0;
+let fBeta=0, fGamma=0;
+const SMOOTH=0.12; // low-pass smoothing
+
 function toggleGyro(){
   gyroOn=!gyroOn;
+  if(gyroOn) gyroCalibrated=false; // recalibrate each time
   document.getElementById('bgy').classList.toggle('on',gyroOn);
   document.getElementById('bgy').textContent=gyroOn?'✈ GYRO ON':'✈ GYRO';
   if(gyroOn){
@@ -463,35 +469,49 @@ function toggleGyro(){
     else go();
   } else {
     window.removeEventListener('deviceorientation',onOri);
+    pitch=0; // level out when gyro off
   }
 }
 
-// Low-pass filter state for smooth gyro
-let fBeta=90, fGamma=0;
-const ALPHA=0.15; // smoothing factor: lower = smoother but laggier
-
 function onOri(e){
-  if(!gyroOn)return;
-  const b=e.beta??90, g=e.gamma??0;
-  // Low-pass filter
-  fBeta  += ALPHA*(b-fBeta);
-  fGamma += ALPHA*(g-fGamma);
+  if(!gyroOn) return;
+  const b=e.beta??0, g=e.gamma??0;
 
-  // ROLL (gamma): neutral=0°, dead zone ±7°
-  // Rate turn: tilt right (+gamma) → turn right
-  const roll=fGamma;
-  const dead=7;
-  if(Math.abs(roll)>dead)
-    yaw += Math.sign(roll)*(Math.abs(roll)-dead)*0.022;
+  // Calibrate: first reading defines "straight and level"
+  if(!gyroCalibrated){
+    calBeta=b; calGamma=g;
+    fBeta=b; fGamma=g;
+    gyroCalibrated=true;
+    return;
+  }
 
-  // PITCH (beta): neutral=90° (phone held upright in landscape)
-  // Tilt back (beta>90) = nose up = pitch up; tilt forward = pitch down
-  // Range mapped: ±40° from neutral → ±60° pitch
-  pitch=Math.max(-60,Math.min(60,(fBeta-90)*0.75));
+  // Low-pass filter raw values
+  fBeta  += SMOOTH*(b  - fBeta);
+  fGamma += SMOOTH*(g  - fGamma);
+
+  // Relative to calibration
+  const relRoll  = fGamma - calGamma; // right tilt = positive
+  const relPitch = fBeta  - calBeta;  // nose up = positive (tilt back)
+
+  // TURN: Boeing-style — very gradual. Dead zone ±5°.
+  // Max bank ~30° → max turn rate ~2°/sec = 0.033°/frame at 60fps
+  const dead=5;
+  const bank=relRoll;
+  if(Math.abs(bank)>dead){
+    const rate=(Math.abs(bank)-dead)/30; // 0..1 as bank goes 5°..35°
+    yaw += Math.sign(bank)*Math.min(rate,1)*0.033;
+  }
+
+  // PITCH: ±30° nose movement → ±45° pitch angle. Smooth.
+  pitch = Math.max(-50, Math.min(50, relPitch * 1.5));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
-function resetPos(){pos={...START};yaw=0;pitch=0;}
+function resetPos(){
+  pos={...START};yaw=0;pitch=0;
+  frozen=true; gyroCalibrated=false;
+  setTimeout(()=>frozen=false, 1500);
+}
 function toggleFS(){
   if(!document.fullscreenElement){
     document.documentElement.requestFullscreen().catch(()=>{});
@@ -532,9 +552,12 @@ async function init(){
   bSiFloor=mkSiFloor();
   bSiCeil =mkSiCeil();
   bQBox   =mkQBox();
-  lp(100,'Ready!');
-  setTimeout(()=>{document.getElementById('loading').style.display='none';
-    requestAnimationFrame(fly);},250);
+  lp(100,'Ready — hold phone level…');
+  setTimeout(()=>{
+    document.getElementById('loading').style.display='none';
+    setTimeout(()=>{ frozen=false; },1500); // 1.5s to settle gyro + see scene
+    requestAnimationFrame(fly);
+  },250);
 }
 init().catch(e=>{document.getElementById('lstatus').textContent='Error: '+e.message;console.error(e);});
 </script>
