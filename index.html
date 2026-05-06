@@ -56,6 +56,7 @@ canvas{display:block;}
 </div>
 <div id="hit"></div><div id="vsep"></div>
 <canvas id="c"></canvas>
+<div id="gdbg" style="position:fixed;top:10px;left:10px;background:rgba(0,0,0,0.7);color:#ff0;font-size:11px;font-family:monospace;padding:6px;border-radius:4px;z-index:30;white-space:pre;pointer-events:none;"></div>
 <div id="ui">
   <div id="dashboard">
     <h3>◈ COCKPIT</h3>
@@ -471,6 +472,7 @@ let gyroCalibrated=false;
 let calBeta=0, calGamma=0;
 let fBeta=0, fGamma=0;
 const SMOOTH=0.10;
+const dbg=document.getElementById('gdbg');
 
 function toggleGyro(){
   gyroOn=!gyroOn;
@@ -488,11 +490,16 @@ function toggleGyro(){
   }
 }
 
+// ── GYRO DEBUG ────────────────────────────────────────
+let dbg=document.getElementById('gdbg');
+
 function onOri(e){
   if(!gyroOn) return;
-  const b=e.beta??90, g=e.gamma??0;
+  const b=e.beta??90, g=e.gamma??0, a=e.alpha??0;
 
-  // First reading = calibration (your current hold = straight+level)
+  // Show raw values always so we can debug
+  dbg.textContent=`α:${a.toFixed(1)} β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrel β:${(b-(calBeta||b)).toFixed(1)} γ:${(g-(calGamma||g)).toFixed(1)}`;
+
   if(!gyroCalibrated){
     calBeta=b; calGamma=g;
     fBeta=b; fGamma=g;
@@ -503,19 +510,18 @@ function onOri(e){
   fBeta  += SMOOTH*(b - fBeta);
   fGamma += SMOOTH*(g - fGamma);
 
-  const relRoll  = fGamma - calGamma; // +ve = tilted right
-  const relPitch = fBeta  - calBeta;  // +ve = tilted back (nose up)
+  const relRoll  = fGamma - calGamma;
+  const relPitch = fBeta  - calBeta;
 
-  // YAW: Boeing-style rate turn. Dead zone ±5°. Max ~2°/s at 30° bank.
+  // YAW
   const dead=5;
   if(Math.abs(relRoll)>dead){
     const rate=Math.min((Math.abs(relRoll)-dead)/25, 1.0);
     yaw += Math.sign(relRoll)*rate*0.035;
   }
 
-  // PITCH: forward tilt (relPitch negative) = nose down = negative pitch
-  // Invert so physics matches intuition
-  pitch = Math.max(-55, Math.min(55, relPitch * 1.4));
+  // PITCH: negate so forward tilt = nose down
+  pitch = Math.max(-55, Math.min(55, -relPitch * 1.4));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
