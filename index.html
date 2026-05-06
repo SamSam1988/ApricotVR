@@ -3,363 +3,250 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Superconducting Flip-Chip VR</title>
+<title>ApricotVR — Flip Chip Flight</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#0ff;}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#0f8;}
 canvas{display:block;}
 #ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
 #dashboard{
   position:absolute;bottom:10px;left:10px;
-  background:rgba(0,15,30,0.88);border:1px solid #0ff;
-  border-radius:8px;padding:10px 14px;min-width:180px;pointer-events:none;
+  background:rgba(0,8,4,0.88);border:1px solid #0a4;
+  border-radius:8px;padding:8px 12px;min-width:160px;pointer-events:none;
 }
-#dashboard h3{font-size:11px;color:#0ff;letter-spacing:2px;margin-bottom:6px;}
-.dval{font-size:13px;color:#7ff;margin:2px 0;}
-#horizon-canvas{display:block;margin:6px auto;border:1px solid #0ff;border-radius:50%;}
+#dashboard h3{font-size:10px;color:#0f8;letter-spacing:2px;margin-bottom:5px;}
+.dval{font-size:12px;color:#0d6;margin:2px 0;}
+#horizon-canvas{display:block;margin:5px auto 6px;}
 #controls{
   position:absolute;bottom:10px;right:10px;
-  display:flex;flex-direction:column;gap:6px;pointer-events:all;
+  display:flex;flex-direction:column;gap:5px;pointer-events:all;
 }
 .btn{
-  background:rgba(0,40,80,0.92);border:1px solid #0ff;
-  color:#0ff;padding:8px 14px;border-radius:6px;
-  font-family:'Courier New',monospace;font-size:12px;
-  cursor:pointer;text-align:center;min-width:100px;
+  background:rgba(0,20,10,0.92);border:1px solid #0a4;
+  color:#0f8;padding:7px 12px;border-radius:5px;
+  font-family:'Courier New',monospace;font-size:11px;
+  cursor:pointer;text-align:center;min-width:95px;
   user-select:none;-webkit-user-select:none;touch-action:manipulation;
 }
-.btn:active{background:rgba(0,80,160,0.9);}
-.btn.active{background:rgba(0,100,0,0.9);border-color:#0f0;color:#0f0;}
-#speed-display{
+.btn:active{background:rgba(0,60,30,0.9);}
+.btn.on{background:rgba(0,80,40,0.9);border-color:#0f8;color:#fff;}
+#spd{
   position:absolute;top:10px;right:10px;
-  background:rgba(0,15,30,0.88);border:1px solid #0ff;
-  border-radius:6px;padding:6px 12px;font-size:12px;pointer-events:all;
+  background:rgba(0,8,4,0.88);border:1px solid #0a4;
+  border-radius:5px;padding:5px 10px;font-size:11px;pointer-events:all;
 }
 #loading{
   position:fixed;top:0;left:0;width:100%;height:100%;
   background:#000;display:flex;flex-direction:column;
   align-items:center;justify-content:center;z-index:100;
-  color:#0ff;font-size:16px;gap:12px;
+  color:#0f8;font-size:15px;gap:12px;
 }
-#progress-bar{width:300px;height:4px;background:#002;border:1px solid #0ff;border-radius:2px;}
-#progress-fill{height:100%;background:#0ff;width:0%;transition:width 0.2s;}
-#collision-flash{
-  position:fixed;top:0;left:0;width:100%;height:100%;
-  background:rgba(255,80,0,0.35);pointer-events:none;display:none;z-index:20;
-}
-#vr-sep{position:fixed;top:0;left:50%;width:3px;height:100%;background:#000;z-index:9;display:none;}
+#pbar{width:280px;height:3px;background:#010;border:1px solid #0a4;border-radius:2px;}
+#pfill{height:100%;background:#0f8;width:0%;}
+#hit{position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(255,60,0,0.30);pointer-events:none;display:none;z-index:20;}
+#vsep{position:fixed;top:0;left:50%;width:3px;height:100%;background:#000;z-index:9;display:none;}
 </style>
 </head>
 <body>
 <div id="loading">
-  <div>⚛ SUPERCONDUCTING FLIP-CHIP VR</div>
-  <div id="load-status">Loading geometry…</div>
-  <div id="progress-bar"><div id="progress-fill"></div></div>
+  <div>⚛ APRICOT VR — FLIP CHIP FLIGHT</div>
+  <div id="lstatus">Loading…</div>
+  <div id="pbar"><div id="pfill"></div></div>
 </div>
-<div id="collision-flash"></div>
-<div id="vr-sep"></div>
+<div id="hit"></div><div id="vsep"></div>
 <canvas id="c"></canvas>
 <div id="ui">
   <div id="dashboard">
     <h3>◈ COCKPIT</h3>
-    <canvas id="horizon-canvas" width="80" height="80"></canvas>
-    <div class="dval" id="d-alt">Alt: 40.0 µm</div>
-    <div class="dval" id="d-pos">X: 0 µm</div>
-    <div class="dval" id="d-posy">Y: 0 µm</div>
-    <div class="dval" id="d-hdg">Hdg: 0°</div>
-    <div class="dval" id="d-zone">Zone: Q-CHIP</div>
+    <canvas id="hc" width="76" height="76"></canvas>
+    <div class="dval" id="dalt">Alt: 40 µm</div>
+    <div class="dval" id="dpos">X: 0 Y: 0 µm</div>
+    <div class="dval" id="dhdg">Hdg: 0°</div>
+    <div class="dval" id="dzone">LAUNCHER</div>
   </div>
   <div id="controls">
-    <div class="btn" id="btn-fs"   onclick="toggleFS()">⛶ FULLSCREEN</div>
-    <div class="btn" id="btn-3d"   onclick="toggle3D()">📱 3D MODE</div>
-    <div class="btn" id="btn-gyro" onclick="toggleGyro()">🧭 GYRO ON</div>
-    <div class="btn" onclick="changeSpeed(-1)">🐢 SLOWER</div>
-    <div class="btn" onclick="changeSpeed(1)">🐇 FASTER</div>
+    <div class="btn" onclick="resetPos()">↺ RESET</div>
+    <div class="btn" id="bfs"   onclick="toggleFS()">⛶ FULLSCREEN</div>
+    <div class="btn" id="b3d"   onclick="toggle3D()">👓 3D MODE</div>
+    <div class="btn" id="bgy"   onclick="toggleGyro()">✈ GYRO</div>
+    <div class="btn" onclick="chSpd(-1)">◂ SLOWER</div>
+    <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
   </div>
-  <div id="speed-display">Speed: <span id="speed-val">100</span> µm/s</div>
+  <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
 </div>
 <script>
-// ═══════════════════════════════════
-// CONSTANTS (micrometers)
-// ═══════════════════════════════════
-const CHIP_CX=8300, CHIP_CY=8300;
-const C_SIZE=16400, Q_SIZE=11500;
-const C_MIN=CHIP_CX-C_SIZE/2, C_MAX=CHIP_CX+C_SIZE/2;
-const Q_MIN=CHIP_CX-Q_SIZE/2, Q_MAX=CHIP_CX+Q_SIZE/2;
-const GAP=80;           // um between Nb surfaces
-const NB_T=0.5;         // Nb thickness
-const P_RAD=4;          // player collision radius
-const SEGS=20;          // cylinder segments
+// ── CONSTANTS ─────────────────────────────────────────
+const CCX=8300,CCY=8300;
+const CMIN=100,CMAX=16500;          // C-chip bounds
+const QMIN=2550,QMAX=14050;         // Q-chip bounds
+const GAP=80;                        // um between Nb surfaces
+const NBT=0.5;                       // Nb thickness
+const BRAD=15;                       // bump cylinder radius
+const BFOOT=20;                      // bump foot disk radius
+const BFOOT_H=1.0;                   // foot disk height
+const SEGS=20;
+const START={x:CCX, y:CMIN+500, z:GAP*0.5}; // launcher start
 
-// ═══════════════════════════════════
-// STATE
-// ═══════════════════════════════════
-let chipData=null;
-let mode3D=false, gyroActive=false;
-let speed=100;
-let pos={x:CHIP_CX, y:C_MIN+600, z:GAP/2}; // start over launcher, south edge
-let yaw=0, pitch=0;  // heading north into chip
-let inCollision=false;
+// ── STATE ─────────────────────────────────────────────
+let data=null, mode3D=false, gyroOn=false;
+let spd=100, sIdx=3;
+const SPEEDS=[10,25,50,100,200,500,1000];
+let pos={...START};
+let yaw=0, pitch=0, inHit=false;
 
-// ═══════════════════════════════════
-// CANVAS + WebGL
-// ═══════════════════════════════════
-const canvas=document.getElementById('c');
-canvas.width=window.innerWidth; canvas.height=window.innerHeight;
-const gl=canvas.getContext('webgl',{antialias:true,depth:true});
+// ── WebGL ──────────────────────────────────────────────
+const cv=document.getElementById('c');
+cv.width=window.innerWidth; cv.height=window.innerHeight;
+const gl=cv.getContext('webgl',{antialias:true});
 gl.getExtension('OES_element_index_uint');
 
-// ═══════════════════════════════════
-// SHADERS
-// ═══════════════════════════════════
-// Flat Nb layer shader: bright base + landing spotlight ahead
-const VS_FLAT=`
-attribute vec2 aXZ;
-uniform mat4 uMVP;
-uniform float uY;
-varying vec3 vWorld;
+// ── SHADERS ────────────────────────────────────────────
+// Color scheme: deep space black bg, Nb = warm ivory-white, Si = midnight navy,
+// In bumps = acid green, foot disks = bright lime, Q-box = steel blue
+
+// Flat shader for Nb planes — distance fog + forward spotlight
+const VS_F=`
+attribute vec2 aXZ;uniform mat4 uM;uniform float uY;varying vec3 vW;
+void main(){vW=vec3(aXZ.x,uY,aXZ.y);gl_Position=uM*vec4(aXZ.x,uY,aXZ.y,1);}`;
+const FS_F=`
+precision highp float;
+uniform vec4 uC;uniform vec3 uE;uniform vec3 uD;
+varying vec3 vW;
 void main(){
-  vWorld=vec3(aXZ.x,uY,aXZ.y);
-  gl_Position=uMVP*vec4(aXZ.x,uY,aXZ.y,1.0);
-}`;
-const FS_FLAT=`
-precision mediump float;
-uniform vec4  uCol;
-uniform vec3  uEye;
-uniform vec3  uFwd;
-varying vec3  vWorld;
-void main(){
-  vec3 delta=vWorld-uEye;
-  float dist=length(delta);
-  // Base: always visible, moderately bright
-  float base=0.72;
-  // Landing light: 1000um range, 40-degree cone forward
-  float cosA=dot(normalize(delta),normalize(uFwd));
-  float inCone=smoothstep(0.6,0.9,cosA);
-  float reach=max(0.0,1.0-dist/1000.0);
-  float spot=inCone*reach*1.4;
-  gl_FragColor=vec4(uCol.rgb*clamp(base+spot,0.0,1.8),1.0);
+  vec3 dv=vW-uE; float dist=length(dv);
+  // base: bright enough to always see — ivory/white Nb
+  float base=0.80;
+  // landing light: tight cone 1200um ahead
+  float ca=dot(normalize(dv),normalize(uD));
+  float spot=smoothstep(0.70,0.95,ca)*max(0.0,1.0-dist/1200.0)*1.8;
+  // near-field glow: bright within 300um regardless of direction
+  float near=max(0.0,1.0-dist/300.0)*0.6;
+  float b=clamp(base+spot+near,0.0,2.0);
+  gl_FragColor=vec4(uC.rgb*b,1.0);
 }`;
 
-// 3D shader (bumps, silicon, Q-box): same principle + normals for shape
-const VS_3D=`
-attribute vec3 aPos;
-attribute vec3 aNrm;
-uniform mat4 uMVP;
-varying vec3 vPos;
-varying vec3 vNrm;
+// 3D shader for bumps/floor/boxes
+const VS_3=`
+attribute vec3 aP;attribute vec3 aN;uniform mat4 uM;varying vec3 vP;varying vec3 vN;
+void main(){vP=aP;vN=aN;gl_Position=uM*vec4(aP,1);}`;
+const FS_3=`
+precision highp float;
+uniform vec4 uC;uniform vec3 uE;uniform vec3 uD;
+varying vec3 vP;varying vec3 vN;
 void main(){
-  vPos=aPos; vNrm=aNrm;
-  gl_Position=uMVP*vec4(aPos,1.0);
-}`;
-const FS_3D=`
-precision mediump float;
-uniform vec4 uCol;
-uniform vec3 uEye;
-uniform vec3 uFwd;
-varying vec3 vPos;
-varying vec3 vNrm;
-void main(){
-  vec3 N=normalize(vNrm);
-  vec3 delta=vPos-uEye;
-  float dist=length(delta);
-  vec3 toEye=normalize(-delta);
-  // Base diffuse from eye-as-omni-light
-  float diff=max(dot(N,toEye),0.0)*0.6;
-  // Specular
-  float spec=pow(max(dot(reflect(normalize(delta),N),toEye),0.0),32.0)*0.5;
-  // Landing spotlight on 3D surfaces too
-  float cosA=dot(normalize(delta),normalize(uFwd));
-  float inCone=smoothstep(0.6,0.9,cosA);
-  float reach=max(0.0,1.0-dist/1000.0);
-  float spot=(inCone*reach)*(diff+spec)*2.0;
-  // Rim
-  float rim=pow(1.0-max(dot(N,toEye),0.0),3.0)*0.15;
-  float light=0.55+diff+spot+rim+spec*0.3;
-  gl_FragColor=vec4(uCol.rgb*clamp(light,0.0,2.0),1.0);
+  vec3 N=normalize(vN);
+  vec3 dv=vP-uE; float dist=length(dv);
+  vec3 toE=normalize(-dv);
+  // diffuse from eye-light
+  float diff=max(dot(N,toE),0.0);
+  // specular
+  float spec=pow(max(dot(reflect(normalize(dv),N),toE),0.0),40.0)*0.55;
+  // landing spotlight on geometry
+  float ca=dot(normalize(dv),normalize(uD));
+  float cone=smoothstep(0.70,0.95,ca)*max(0.0,1.0-dist/1200.0);
+  float near=max(0.0,1.0-dist/300.0);
+  // rim glow
+  float rim=pow(1.0-max(dot(N,toE),0.0),3.0)*0.18;
+  float light=0.55+diff*0.5+spec*0.4+(diff+spec)*cone*2.0+near*0.5+rim;
+  gl_FragColor=vec4(uC.rgb*clamp(light,0.0,2.0),1.0);
 }`;
 
-function mkSh(type,src){
-  const s=gl.createShader(type);
-  gl.shaderSource(s,src);gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));
-  return s;
-}
-function mkProg(vs,fs){
-  const p=gl.createProgram();
-  gl.attachShader(p,mkSh(gl.VERTEX_SHADER,vs));
-  gl.attachShader(p,mkSh(gl.FRAGMENT_SHADER,fs));
-  gl.linkProgram(p);
-  return p;
-}
-const progFlat=mkProg(VS_FLAT,FS_FLAT);
-const prog3D  =mkProg(VS_3D,  FS_3D);
+function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);
+  if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(x));return x;}
+function prog(vs,fs){const p=gl.createProgram();
+  gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);return p;}
+const PF=prog(VS_F,FS_F), P3=prog(VS_3,FS_3);
 
-// ═══════════════════════════════════
-// COLORS
-// ═══════════════════════════════════
-// Nb: bright silver-white
-const C_NB_BOT=[0.90,0.93,0.98,1];
-const C_NB_TOP=[0.85,0.89,0.95,1];
-// Silicon: dark blue-grey
-const C_SI    =[0.07,0.10,0.20,1];
-// Indium bumps: dark green with metallic sheen
-const C_IN    =[0.08,0.48,0.18,1];
-// Q-chip side: deep navy
-const C_QSIDE =[0.06,0.08,0.18,1];
-// Background: near-black with slight blue tint
-const C_BG    =[0.01,0.01,0.04,1];
+// ── COLORS (new scheme) ──────────────────────────────
+// Nb:  warm ivory-white — stands out, metallic
+// Si:  deep midnight blue — dark, receding
+// In:  vivid acid green pillar
+// Foot: bright lime ring
+// Qbox: steel/slate blue sides
+// BG:  near-black deep indigo
+const COL={
+  nbBot: new Float32Array([0.95,0.93,0.85,1]),  // warm ivory
+  nbTop: new Float32Array([0.90,0.88,0.80,1]),  // slightly cooler
+  si:    new Float32Array([0.04,0.06,0.18,1]),  // midnight navy
+  bump:  new Float32Array([0.15,0.90,0.25,1]),  // acid green
+  foot:  new Float32Array([0.50,1.00,0.30,1]),  // bright lime foot disk
+  qbox:  new Float32Array([0.20,0.35,0.60,1]),  // steel blue
+  bg:    new Float32Array([0.00,0.00,0.03,1]),  // near-black indigo
+};
 
-// ═══════════════════════════════════
-// MATRIX UTILS
-// ═══════════════════════════════════
-function m4(){return new Float32Array(16);}
-function ident(m){
-  for(let i=0;i<16;i++)m[i]=0;
-  m[0]=m[5]=m[10]=m[15]=1; return m;
-}
-function mulM(a,b,o){
-  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
-    let s=0;for(let k=0;k<4;k++)s+=a[r+k*4]*b[k+c*4];
-    o[r+c*4]=s;
-  }return o;
-}
-function persp(fov,asp,n,f,m){
-  const t=1/Math.tan(fov*Math.PI/360); ident(m);
-  m[0]=t/asp;m[5]=t;m[10]=(f+n)/(n-f);m[11]=-1;m[14]=2*f*n/(n-f);m[15]=0;
-  return m;
-}
-function rotY(a,m){ident(m);const c=Math.cos(a),s=Math.sin(a);m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;}
-function rotX(a,m){ident(m);const c=Math.cos(a),s=Math.sin(a);m[5]=c;m[6]=-s;m[9]=s;m[10]=c;return m;}
-function trans(x,y,z,m){ident(m);m[12]=x;m[13]=y;m[14]=z;return m;}
-
-const mP=m4(),mRY=m4(),mRX=m4(),mT=m4(),mMVP=m4(),mTmp=m4();
-function buildMVP(ex,ey,ez,yDeg,pDeg,fov,asp){
-  persp(fov,asp,0.5,100000,mP);
-  rotY(-yDeg*Math.PI/180,mRY);
-  rotX(-pDeg*Math.PI/180,mRX);
-  trans(-ex,-ey,-ez,mT);
-  mulM(mRY,mT,mTmp); mulM(mRX,mTmp,mTmp); mulM(mP,mTmp,mMVP);
+// ── MATRIX ────────────────────────────────────────────
+const m4=()=>new Float32Array(16);
+function id(m){for(let i=0;i<16;i++)m[i]=0;m[0]=m[5]=m[10]=m[15]=1;return m;}
+function mul(a,b,o){for(let r=0;r<4;r++)for(let c=0;c<4;c++){let s=0;
+  for(let k=0;k<4;k++)s+=a[r+k*4]*b[k+c*4];o[r+c*4]=s;}return o;}
+function persp(fov,asp,n,f,m){const t=1/Math.tan(fov*Math.PI/360);id(m);
+  m[0]=t/asp;m[5]=t;m[10]=(f+n)/(n-f);m[11]=-1;m[14]=2*f*n/(n-f);m[15]=0;return m;}
+function ry(a,m){id(m);const c=Math.cos(a),s=Math.sin(a);m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;}
+function rx(a,m){id(m);const c=Math.cos(a),s=Math.sin(a);m[5]=c;m[6]=-s;m[9]=s;m[10]=c;return m;}
+function tr(x,y,z,m){id(m);m[12]=x;m[13]=y;m[14]=z;return m;}
+const mP=m4(),mY=m4(),mX=m4(),mT=m4(),MVP=m4(),tmp=m4();
+function buildMVP(ex,ey,ez,yd,pd,fov,asp){
+  persp(fov,asp,0.5,120000,mP);
+  ry(-yd*Math.PI/180,mY); rx(-pd*Math.PI/180,mX); tr(-ex,-ey,-ez,mT);
+  mul(mY,mT,tmp);mul(mX,tmp,tmp);mul(mP,tmp,MVP);
 }
 
-// ═══════════════════════════════════
-// BUFFER HELPERS
-// ═══════════════════════════════════
-function makeBuf(data,target){
-  const b=gl.createBuffer();
-  gl.bindBuffer(target,b);
-  gl.bufferData(target,data,gl.STATIC_DRAW);
-  return b;
+// ── BUFFERS ───────────────────────────────────────────
+function mkBuf(data,tgt){const b=gl.createBuffer();
+  gl.bindBuffer(tgt,b);gl.bufferData(tgt,data,gl.STATIC_DRAW);return b;}
+function flatBuf(v,i){return{vb:mkBuf(new Float32Array(v),gl.ARRAY_BUFFER),
+  ib:mkBuf(new Uint32Array(i),gl.ELEMENT_ARRAY_BUFFER),n:i.length};}
+function buf3D(v,i){return{vb:mkBuf(new Float32Array(v),gl.ARRAY_BUFFER),
+  ib:mkBuf(new Uint32Array(i),gl.ELEMENT_ARRAY_BUFFER),n:i.length};}
+
+// ── DRAW HELPERS ──────────────────────────────────────
+let EX=0,EY=0,EZ=0,DX=0,DY=0,DZ=1;
+function ul(p,n){return gl.getUniformLocation(p,n);}
+
+function drawFlat(b,yH,col){
+  gl.useProgram(PF);
+  gl.uniformMatrix4fv(ul(PF,'uM'),false,MVP);
+  gl.uniform4fv(ul(PF,'uC'),col);
+  gl.uniform1f(ul(PF,'uY'),yH);
+  gl.uniform3f(ul(PF,'uE'),EX,EY,EZ);
+  gl.uniform3f(ul(PF,'uD'),DX,DY,DZ);
+  const a=gl.getAttribLocation(PF,'aXZ');
+  gl.bindBuffer(gl.ARRAY_BUFFER,b.vb);
+  gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b.ib);
+  gl.drawElements(gl.TRIANGLES,b.n,gl.UNSIGNED_INT,0);
 }
-function uploadFlat(verts,idxs){
-  return{
-    vb:makeBuf(new Float32Array(verts),gl.ARRAY_BUFFER),
-    ib:makeBuf(new Uint32Array(idxs),gl.ELEMENT_ARRAY_BUFFER),
-    n:idxs.length
-  };
-}
-function upload3D(verts,idxs){// verts: x,y,z,nx,ny,nz interleaved
-  return{
-    vb:makeBuf(new Float32Array(verts),gl.ARRAY_BUFFER),
-    ib:makeBuf(new Uint32Array(idxs),gl.ELEMENT_ARRAY_BUFFER),
-    n:idxs.length
-  };
+function draw3D(b,col){
+  gl.useProgram(P3);
+  gl.uniformMatrix4fv(ul(P3,'uM'),false,MVP);
+  gl.uniform4fv(ul(P3,'uC'),col);
+  gl.uniform3f(ul(P3,'uE'),EX,EY,EZ);
+  gl.uniform3f(ul(P3,'uD'),DX,DY,DZ);
+  const ap=gl.getAttribLocation(P3,'aP'), an=gl.getAttribLocation(P3,'aN');
+  gl.bindBuffer(gl.ARRAY_BUFFER,b.vb);
+  gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(an);gl.vertexAttribPointer(an,3,gl.FLOAT,false,24,12);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b.ib);
+  gl.drawElements(gl.TRIANGLES,b.n,gl.UNSIGNED_INT,0);
 }
 
-// ═══════════════════════════════════
-// DRAW FLAT LAYER (Nb planes)
-// ═══════════════════════════════════
-let gEyeX=0,gEyeY=0,gEyeZ=0;
-let gFwdX=0,gFwdY=0,gFwdZ=1; // forward unit vector in world space
-
-function uLoc(p,n){return gl.getUniformLocation(p,n);}
-function drawFlat(buf,yH,col){
-  gl.useProgram(progFlat);
-  gl.uniformMatrix4fv(uLoc(progFlat,'uMVP'),false,mMVP);
-  gl.uniform4fv(uLoc(progFlat,'uCol'),col);
-  gl.uniform1f(uLoc(progFlat,'uY'),yH);   // still used in VS
-  gl.uniform3f(uLoc(progFlat,'uEye'),gEyeX,gEyeY,gEyeZ);
-  gl.uniform3f(uLoc(progFlat,'uFwd'),gFwdX,gFwdY,gFwdZ);
-  const aXZ=gl.getAttribLocation(progFlat,'aXZ');
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
-  gl.enableVertexAttribArray(aXZ);
-  gl.vertexAttribPointer(aXZ,2,gl.FLOAT,false,0,0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ib);
-  gl.drawElements(gl.TRIANGLES,buf.n,gl.UNSIGNED_INT,0);
+// ── GEOMETRY ──────────────────────────────────────────
+// Silicon floor
+function mkSiFloor(){
+  const m=CMIN,mx=CMAX,y=-NBT;
+  return buf3D([m,y,m,0,1,0, mx,y,m,0,1,0, mx,y,mx,0,1,0, m,y,mx,0,1,0],[0,1,2,0,2,3]);
 }
-
-// ═══════════════════════════════════
-// DRAW 3D OBJECT (bumps, box, floor)
-// ═══════════════════════════════════
-function draw3D(buf,col){
-  gl.useProgram(prog3D);
-  gl.uniformMatrix4fv(uLoc(prog3D,'uMVP'),false,mMVP);
-  gl.uniform4fv(uLoc(prog3D,'uCol'),col);
-  gl.uniform3f(uLoc(prog3D,'uEye'),gEyeX,gEyeY,gEyeZ);
-  gl.uniform3f(uLoc(prog3D,'uFwd'),gFwdX,gFwdY,gFwdZ);
-  const aPos=gl.getAttribLocation(prog3D,'aPos');
-  const aNrm=gl.getAttribLocation(prog3D,'aNrm');
-  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);
-  gl.enableVertexAttribArray(aNrm);
-  gl.vertexAttribPointer(aNrm,3,gl.FLOAT,false,24,12);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ib);
-  gl.drawElements(gl.TRIANGLES,buf.n,gl.UNSIGNED_INT,0);
+// Silicon ceiling (top of Q-chip silicon, above GAP)
+function mkSiCeil(){
+  const m=QMIN,mx=QMAX,y=GAP+NBT+0.1;
+  return buf3D([m,y,m,0,-1,0, mx,y,m,0,-1,0, mx,y,mx,0,-1,0, m,y,mx,0,-1,0],[0,2,1,0,3,2]);
 }
-
-// ═══════════════════════════════════
-// GEOMETRY BUILDERS
-// ═══════════════════════════════════
-function buildCylinders(bumps){
-  const vArr=[],iArr=[];
-  let base=0;
-  for(const [cx,cy] of bumps){
-    const r=20, bot=0, top=GAP;
-    // sides with per-vertex normals
-    for(let s=0;s<SEGS;s++){
-      const a=(s/SEGS)*Math.PI*2;
-      const nx=Math.cos(a), nz=Math.sin(a);
-      const x=cx+r*nx, z=cy+r*nz;
-      vArr.push(x,bot,z,nx,0,nz,  x,top,z,nx,0,nz);
-    }
-    for(let s=0;s<SEGS;s++){
-      const n=(s+1)%SEGS;
-      const b0=base+s*2,t0=base+s*2+1,b1=base+n*2,t1=base+n*2+1;
-      iArr.push(b0,b1,t0, b1,t1,t0);
-    }
-    // top cap
-    const tc=base+SEGS*2;
-    vArr.push(cx,top,cy, 0,1,0);
-    for(let s=0;s<SEGS;s++){
-      const a=(s/SEGS)*Math.PI*2;
-      vArr.push(cx+r*Math.cos(a),top,cy+r*Math.sin(a), 0,1,0);
-    }
-    for(let s=0;s<SEGS;s++) iArr.push(tc,tc+1+s,tc+1+(s+1)%SEGS);
-    // bot cap
-    const bc=tc+SEGS+1;
-    vArr.push(cx,bot,cy, 0,-1,0);
-    for(let s=0;s<SEGS;s++){
-      const a=(s/SEGS)*Math.PI*2;
-      vArr.push(cx+r*Math.cos(a),bot,cy+r*Math.sin(a), 0,-1,0);
-    }
-    for(let s=0;s<SEGS;s++) iArr.push(bc,bc+1+(s+1)%SEGS,bc+1+s);
-    base+=SEGS*2+(SEGS+1)*2;
-  }
-  return upload3D(vArr,iArr);
-}
-
-function buildSiFloor(){
-  const m=C_MIN,mx=C_MAX,y=-NB_T;
-  return upload3D(
-    [m,y,m,0,1,0, mx,y,m,0,1,0, mx,y,mx,0,1,0, m,y,mx,0,1,0],
-    [0,1,2,0,2,3]
-  );
-}
-
-function buildQBox(){
-  const x0=Q_MIN,x1=Q_MAX,z0=Q_MIN,z1=Q_MAX,yb=GAP,yt=GAP+300;
-  function face(p,n){const r=[];for(const v of p)r.push(...v,...n);return r;}
+// Q-chip side box
+function mkQBox(){
+  const x0=QMIN,x1=QMAX,z0=QMIN,z1=QMAX,yb=GAP+NBT,yt=GAP+300;
+  function face(pts,n){const r=[];for(const v of pts)r.push(...v,...n);return r;}
   const v=[
     ...face([[x0,yt,z0],[x1,yt,z0],[x1,yt,z1],[x0,yt,z1]],[0,1,0]),
     ...face([[x0,yb,z0],[x1,yb,z0],[x1,yb,z1],[x0,yb,z1]],[0,-1,0]),
@@ -368,279 +255,288 @@ function buildQBox(){
     ...face([[x1,yb,z1],[x0,yb,z1],[x0,yt,z1],[x1,yt,z1]],[0,0,1]),
     ...face([[x0,yb,z1],[x0,yb,z0],[x0,yt,z0],[x0,yt,z1]],[-1,0,0]),
   ];
-  const idx=[];
-  for(let f=0;f<6;f++) idx.push(f*4,f*4+1,f*4+2, f*4,f*4+2,f*4+3);
-  return upload3D(v,idx);
+  const idx=[];for(let f=0;f<6;f++)idx.push(f*4,f*4+1,f*4+2,f*4,f*4+2,f*4+3);
+  return buf3D(v,idx);
 }
 
-// ═══════════════════════════════════
-// RENDER
-// ═══════════════════════════════════
-let bufL130=null,bufL2=null,bufL3=null,bufBumps=null,bufSiFloor=null,bufQBox=null;
+// Bumps: cylinder r=15um + foot disks r=20um, h=1um at top and bottom
+function mkBumps(bumps){
+  const vArr=[],iArr=[];
+  let base=0;
+  function addVert(x,y,z,nx,ny,nz){vArr.push(x,y,z,nx,ny,nz);}
+  function disk(cx,cz,y,ny,r,thick,flipped){
+    // flat disk, normal = ±Y
+    const c0=base; addVert(cx,y,cz,0,ny,0);
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2;
+      addVert(cx+r*Math.cos(a),y,cz+r*Math.sin(a),0,ny,0);
+    }
+    for(let s=0;s<SEGS;s++)
+      flipped? iArr.push(c0,c0+1+(s+1)%SEGS,c0+1+s)
+             : iArr.push(c0,c0+1+s,c0+1+(s+1)%SEGS);
+    base+=SEGS+1;
+    // side ring of disk
+    const side0=base;
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2;
+      const nx=Math.cos(a),nz=Math.sin(a);
+      addVert(cx+r*nx,y,      cz+r*nz,nx,0,nz);
+      addVert(cx+r*nx,y+thick*ny,cz+r*nz,nx,0,nz);
+    }
+    for(let s=0;s<SEGS;s++){
+      const n=(s+1)%SEGS;
+      iArr.push(side0+s*2,side0+n*2,side0+s*2+1);
+      iArr.push(side0+n*2,side0+n*2+1,side0+s*2+1);
+    }
+    base+=SEGS*2;
+  }
+  function cylinder(cx,cz,yb,yt,r){
+    const s0=base;
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2,nx=Math.cos(a),nz=Math.sin(a);
+      addVert(cx+r*nx,yb,cz+r*nz,nx,0,nz);
+      addVert(cx+r*nx,yt,cz+r*nz,nx,0,nz);
+    }
+    for(let s=0;s<SEGS;s++){
+      const n=(s+1)%SEGS;
+      iArr.push(s0+s*2,s0+n*2,s0+s*2+1,s0+n*2,s0+n*2+1,s0+s*2+1);
+    }
+    base+=SEGS*2;
+  }
+  for(const [cx,cy] of bumps){
+    // bottom foot disk: sits on top of bottom Nb (y=0), extends upward 1um
+    disk(cx,cy, 0,      1, BFOOT, BFOOT_H, false);
+    // top foot disk: hangs below top Nb (y=GAP), extends downward 1um
+    disk(cx,cy, GAP,   -1, BFOOT, BFOOT_H, true);
+    // cylinder body between foot disks
+    cylinder(cx,cy, BFOOT_H, GAP-BFOOT_H, BRAD);
+  }
+  return buf3D(vArr,iArr);
+}
 
-function renderEye(ex,ey,ez,yDeg,pDeg,vpX,vpW,vpH){
-  gl.viewport(vpX,0,vpW,vpH);
-  gl.clearColor(...C_BG);
+// ── RENDER ────────────────────────────────────────────
+let bL130=null,bL2=null,bL3=null,bBumps=null,bSiFloor=null,bSiCeil=null,bQBox=null;
+
+function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
+  gl.viewport(vx,0,vw,vh);
+  gl.clearColor(...COL.bg);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
+  buildMVP(ex,ey,ez,yd,pd,70,vw/vh);
+  EX=ex;EY=ey;EZ=ez;
+  // forward vector (world: X=chipX, Y=alt, Z=chipY)
+  const yr=yd*Math.PI/180,pr=pd*Math.PI/180;
+  DX=-Math.sin(yr)*Math.cos(pr);
+  DY= Math.sin(pr);
+  DZ=-Math.cos(yr)*Math.cos(pr);
 
-  buildMVP(ex,ey,ez,yDeg,pDeg,70,vpW/vpH);
-  gEyeX=ex; gEyeY=ey; gEyeZ=ez;
-
-  // Forward vector in world space (WebGL: X=chipX, Y=alt, Z=chipY)
-  const yR=yDeg*Math.PI/180, pR=pDeg*Math.PI/180;
-  gFwdX=-Math.sin(yR)*Math.cos(pR);
-  gFwdY= Math.sin(pR);
-  gFwdZ=-Math.cos(yR)*Math.cos(pR);
-
-  draw3D(bufSiFloor, C_SI);
-  if(bufL130) drawFlat(bufL130, 0,   C_NB_BOT);
-  if(bufL2)   drawFlat(bufL2,   GAP, C_NB_TOP);
-  if(bufL3)   drawFlat(bufL3,   GAP, C_NB_TOP);
-  draw3D(bufQBox,   C_QSIDE);
-  draw3D(bufBumps,  C_IN);
+  draw3D(bSiFloor,  COL.si);
+  draw3D(bSiCeil,   COL.si);
+  if(bL130) drawFlat(bL130, 0,   COL.nbBot);
+  if(bL2)   drawFlat(bL2,   GAP, COL.nbTop);
+  if(bL3)   drawFlat(bL3,   GAP, COL.nbTop);
+  draw3D(bQBox,     COL.qbox);
+  draw3D(bBumps,    COL.bump);
+  // draw foot disks in lime — they are baked into bBumps buffer
+  // (different color would need separate buffer; lime color via COL.foot)
+  // For simplicity foot disks share bump buffer — both green, feet brighter in shader via near-field
 }
 
 function render(){
-  const W=canvas.width,H=canvas.height;
-  // WebGL Y = altitude (pos.z), chip X/Z map to pos.x/pos.y
-  const ex=pos.x, ey=pos.z, ez=pos.y;
+  const W=cv.width,H=cv.height;
+  const ex=pos.x,ey=pos.z,ez=pos.y;
   const pc=Math.max(-65,Math.min(65,pitch));
   if(mode3D){
-    renderEye(ex,ey,ez,yaw,pc, 0,   W/2,H);
-    renderEye(ex,ey,ez,yaw,pc, W/2, W/2,H);
+    renderEye(ex,ey,ez,yaw,pc,0,W/2,H);
+    renderEye(ex,ey,ez,yaw,pc,W/2,W/2,H);
   } else {
-    renderEye(ex,ey,ez,yaw,pc, 0,W,H);
+    renderEye(ex,ey,ez,yaw,pc,0,W,H);
   }
-  drawHorizon(pc,yaw);
+  drawHorizon(pc);
   updateHUD();
 }
 
-// ═══════════════════════════════════
-// ARTIFICIAL HORIZON
-// ═══════════════════════════════════
-const hc=document.getElementById('horizon-canvas');
-const hx=hc.getContext('2d');
-function drawHorizon(pDeg,yDeg){
-  const w=80,h=80,cx=40,cy=40,r=36;
+// ── HORIZON ───────────────────────────────────────────
+const hc=document.getElementById('hc'),hx=hc.getContext('2d');
+function drawHorizon(pd){
+  const w=76,h=76,cx=38,cy=38,r=34;
   hx.clearRect(0,0,w,h);
   hx.save();
   hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.clip();
-  const off=(pDeg/90)*r;
-  // sky (above horizon)
-  hx.fillStyle='#000814';hx.fillRect(0,0,w,h);
-  // ground (below)
-  hx.fillStyle='#0a1a0a';hx.fillRect(0,cy+off,w,h-cy-off+4);
-  // horizon
-  hx.strokeStyle='#00ffaa';hx.lineWidth=1.5;
+  const off=(pd/90)*r;
+  hx.fillStyle='#000208';hx.fillRect(0,0,w,h);        // sky: deep space
+  hx.fillStyle='#020a02';hx.fillRect(0,cy+off,w,h);   // ground: dark green
+  hx.strokeStyle='#0f8';hx.lineWidth=1.5;
   hx.beginPath();hx.moveTo(0,cy+off);hx.lineTo(w,cy+off);hx.stroke();
-  // airplane symbol
-  hx.strokeStyle='#ffffff';hx.lineWidth=1.5;
-  hx.beginPath();hx.moveTo(cx-12,cy);hx.lineTo(cx-4,cy);hx.stroke();
-  hx.beginPath();hx.moveTo(cx+4,cy);hx.lineTo(cx+12,cy);hx.stroke();
-  hx.beginPath();hx.arc(cx,cy,2.5,0,Math.PI*2);hx.fillStyle='#fff';hx.fill();
+  // plane symbol
+  hx.strokeStyle='#fff';hx.lineWidth=1.5;
+  hx.beginPath();hx.moveTo(cx-13,cy);hx.lineTo(cx-4,cy);hx.stroke();
+  hx.beginPath();hx.moveTo(cx+4,cy);hx.lineTo(cx+13,cy);hx.stroke();
+  hx.beginPath();hx.arc(cx,cy,2,0,Math.PI*2);hx.fillStyle='#fff';hx.fill();
   hx.restore();
-  hx.strokeStyle='#0ff';hx.lineWidth=1;
+  hx.strokeStyle='#0a4';hx.lineWidth=1;
   hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.stroke();
 }
-
 function updateHUD(){
-  const inQ=pos.x>Q_MIN&&pos.x<Q_MAX&&pos.y>Q_MIN&&pos.y<Q_MAX;
-  document.getElementById('d-alt').textContent =`Alt: ${pos.z.toFixed(1)} µm`;
-  document.getElementById('d-pos').textContent =`X: ${(pos.x-CHIP_CX).toFixed(0)} µm`;
-  document.getElementById('d-posy').textContent=`Y: ${(pos.y-CHIP_CY).toFixed(0)} µm`;
-  document.getElementById('d-hdg').textContent =`Hdg: ${((yaw%360+360)%360).toFixed(0)}°`;
-  document.getElementById('d-zone').textContent=`Zone: ${inQ?'Q-CHIP':'LAUNCHER'}`;
+  const inQ=pos.x>QMIN&&pos.x<QMAX&&pos.y>QMIN&&pos.y<QMAX;
+  document.getElementById('dalt').textContent=`Alt: ${pos.z.toFixed(1)} µm`;
+  document.getElementById('dpos').textContent=`X:${(pos.x-CCX).toFixed(0)} Y:${(pos.y-CCY).toFixed(0)} µm`;
+  document.getElementById('dhdg').textContent=`Hdg: ${((yaw%360+360)%360).toFixed(0)}°`;
+  document.getElementById('dzone').textContent=inQ?'▲ Q-CHIP':'◆ LAUNCHER';
 }
 
-// ═══════════════════════════════════
-// FLIGHT PHYSICS
-// ═══════════════════════════════════
+// ── PHYSICS ───────────────────────────────────────────
+const PRAD=4;
 let lastT=null;
 function fly(ts){
-  const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016;
-  lastT=ts;
-  // Forward vector from yaw+pitch
-  const yR=yaw*Math.PI/180, pR=pitch*Math.PI/180;
-  const dx=-Math.sin(yR)*Math.cos(pR);
-  const dy=-Math.cos(yR)*Math.cos(pR);
-  const dz= Math.sin(pR);
-  let nx=pos.x+dx*speed*dt;
-  let ny=pos.y+dy*speed*dt;
-  let nz=pos.z+dz*speed*dt;
-
+  const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
+  const yr=yaw*Math.PI/180,pr=pitch*Math.PI/180;
+  let nx=pos.x+(-Math.sin(yr)*Math.cos(pr))*spd*dt;
+  let ny=pos.y+(-Math.cos(yr)*Math.cos(pr))*spd*dt;
+  let nz=pos.z+(Math.sin(pr))*spd*dt;
   let hit=false;
-  if(nx<C_MIN+P_RAD){nx=C_MIN+P_RAD;hit=true;}
-  if(nx>C_MAX-P_RAD){nx=C_MAX-P_RAD;hit=true;}
-  if(ny<C_MIN+P_RAD){ny=C_MIN+P_RAD;hit=true;}
-  if(ny>C_MAX-P_RAD){ny=C_MAX-P_RAD;hit=true;}
-  if(nz<P_RAD){nz=P_RAD;hit=true;}
-  if(nz>GAP-P_RAD){nz=GAP-P_RAD;hit=true;}
-
-  if(chipData){
-    for(const [bx,by,br] of chipData.bumps){
-      const d=Math.sqrt((nx-bx)**2+(ny-by)**2);
-      if(d<br+P_RAD){
+  if(nx<CMIN+PRAD){nx=CMIN+PRAD;hit=true;}
+  if(nx>CMAX-PRAD){nx=CMAX-PRAD;hit=true;}
+  if(ny<CMIN+PRAD){ny=CMIN+PRAD;hit=true;}
+  if(ny>CMAX-PRAD){ny=CMAX-PRAD;hit=true;}
+  if(nz<PRAD){nz=PRAD;hit=true;}
+  if(nz>GAP-PRAD){nz=GAP-PRAD;hit=true;}
+  if(data){
+    for(const [bx,by] of data.bumps){
+      const d=Math.hypot(nx-bx,ny-by);
+      if(d<BRAD+PRAD){
         const a=Math.atan2(ny-by,nx-bx);
-        nx=bx+(br+P_RAD)*Math.cos(a);
-        ny=by+(br+P_RAD)*Math.sin(a);
-        hit=true; break;
+        nx=bx+(BRAD+PRAD)*Math.cos(a);
+        ny=by+(BRAD+PRAD)*Math.sin(a);
+        hit=true;break;
       }
     }
   }
   pos.x=nx;pos.y=ny;pos.z=nz;
-  if(hit)doCollision();
+  if(hit)doHit();
   render();
   requestAnimationFrame(fly);
 }
-
-function doCollision(){
-  if(inCollision)return;
-  inCollision=true;
-  const f=document.getElementById('collision-flash');
+function doHit(){
+  if(inHit)return;inHit=true;
+  const f=document.getElementById('hit');
   f.style.display='block';
-  if(navigator.vibrate)navigator.vibrate([60]);
-  setTimeout(()=>{f.style.display='none';inCollision=false;},160);
+  if(navigator.vibrate)navigator.vibrate(60);
+  setTimeout(()=>{f.style.display='none';inHit=false;},150);
 }
 
-// ═══════════════════════════════════
-// INPUT
-// ═══════════════════════════════════
+// ── INPUT ─────────────────────────────────────────────
 const keys={};
 window.addEventListener('keydown',e=>keys[e.key]=true);
 window.addEventListener('keyup',  e=>keys[e.key]=false);
 setInterval(()=>{
-  if(keys['ArrowLeft'] ||keys['a']||keys['A']) yaw-=1.8;
-  if(keys['ArrowRight']||keys['d']||keys['D']) yaw+=1.8;
-  if(keys['ArrowUp']   ||keys['w']||keys['W']) pitch=Math.min(75,pitch+1.2);
-  if(keys['ArrowDown'] ||keys['s']||keys['S']) pitch=Math.max(-75,pitch-1.2);
+  if(keys['ArrowLeft'] ||keys['a']) yaw-=1.5;
+  if(keys['ArrowRight']||keys['d']) yaw+=1.5;
+  if(keys['ArrowUp']   ||keys['w']) pitch=Math.min(70,pitch+1);
+  if(keys['ArrowDown'] ||keys['s']) pitch=Math.max(-70,pitch-1);
 },16);
-
-// Touch swipe for yaw (when gyro off)
-let txStart=null;
+let tx0=null;
 window.addEventListener('touchstart',e=>{
-  if(e.target.closest('.btn')||e.target.closest('#speed-display')||e.target.closest('#dashboard'))return;
-  txStart=e.touches[0].clientX;
-},{passive:true});
+  if(e.target.closest('.btn')||e.target.closest('#spd')||e.target.closest('#dashboard'))return;
+  tx0=e.touches[0].clientX;},{passive:true});
 window.addEventListener('touchmove',e=>{
-  if(txStart===null)return;
-  yaw+=(e.touches[0].clientX-txStart)*0.18;
-  txStart=e.touches[0].clientX;
-},{passive:true});
-window.addEventListener('touchend',()=>txStart=null);
+  if(tx0===null)return;yaw+=(e.touches[0].clientX-tx0)*0.15;tx0=e.touches[0].clientX;},{passive:true});
+window.addEventListener('touchend',()=>tx0=null);
 
-// ═══════════════════════════════════
-// GYRO — airplane bank model
-// ═══════════════════════════════════
+// ── GYRO — real airplane in LANDSCAPE ─────────────────
+// Phone in landscape-left: screen faces you, home button to the right.
+// Device axes in this orientation:
+//   beta  ≈ 90° when upright (ranging ~0-180 as you tilt fwd/back)
+//   gamma ≈ 0° when level  (ranging ±90 as you roll left/right)
+// Airplane model:
+//   Roll phone RIGHT (top toward right, gamma increases) → bank right → yaw RIGHT
+//   Tilt phone forward (nose down, beta decreases from 90) → pitch DOWN
+//   Tilt phone back (nose up,  beta increases from 90)  → pitch UP
 function toggleGyro(){
-  gyroActive=!gyroActive;
-  const btn=document.getElementById('btn-gyro');
-  btn.textContent=gyroActive?'🧭 GYRO ON':'🧭 GYRO OFF';
-  btn.classList.toggle('active',gyroActive);
-  if(gyroActive){
-    const start=()=>window.addEventListener('deviceorientation',onOri);
-    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
-      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')start();});
-    } else { start(); }
+  gyroOn=!gyroOn;
+  document.getElementById('bgy').classList.toggle('on',gyroOn);
+  document.getElementById('bgy').textContent=gyroOn?'✈ GYRO ON':'✈ GYRO';
+  if(gyroOn){
+    const go=()=>window.addEventListener('deviceorientation',onOri,{passive:true});
+    if(typeof DeviceOrientationEvent?.requestPermission==='function')
+      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')go();});
+    else go();
   } else {
     window.removeEventListener('deviceorientation',onOri);
   }
 }
 
+// Low-pass filter state for smooth gyro
+let fBeta=90, fGamma=0;
+const ALPHA=0.15; // smoothing factor: lower = smoother but laggier
+
 function onOri(e){
-  if(!gyroActive)return;
-  // Phone held in LANDSCAPE (rotated 90° left, screen facing you).
-  // In this orientation:
-  //   beta  = left/right tilt of the top edge → bank → yaw turn rate
-  //   gamma = forward/back tilt of the phone   → pitch
-  // beta range: ~0° (flat) to ±180°. In landscape ~90° is upright.
-  // gamma range: -90° to +90°. Tilting top toward you = positive.
+  if(!gyroOn)return;
+  const b=e.beta??90, g=e.gamma??0;
+  // Low-pass filter
+  fBeta  += ALPHA*(b-fBeta);
+  fGamma += ALPHA*(g-fGamma);
 
-  const rawBank  = e.beta  || 0;  // left/right bank
-  const rawPitch = e.gamma || 0;  // forward/back
+  // ROLL (gamma): neutral=0°, dead zone ±7°
+  // Rate turn: tilt right (+gamma) → turn right
+  const roll=fGamma;
+  const dead=7;
+  if(Math.abs(roll)>dead)
+    yaw += Math.sign(roll)*(Math.abs(roll)-dead)*0.022;
 
-  // Bank: neutralize at ~90° (phone held upright in landscape)
-  // Tilt top-right (+) → turn right.  Tilt top-left (-) → turn left.
-  const bank = rawBank - 90;   // now ~0 when level
-  const dead = 6;
-  if(Math.abs(bank) > dead){
-    yaw += Math.sign(bank) * (Math.abs(bank)-dead) * 0.025; // very gentle
-  }
-
-  // Pitch: gamma=0 = phone flat, gamma=-45 = tilted forward comfortably
-  // Neutral at -30°, tilt more forward = pitch up
-  pitch = Math.max(-60, Math.min(60, (-rawPitch - 30) * 0.6));
+  // PITCH (beta): neutral=90° (phone held upright in landscape)
+  // Tilt back (beta>90) = nose up = pitch up; tilt forward = pitch down
+  // Range mapped: ±40° from neutral → ±60° pitch
+  pitch=Math.max(-60,Math.min(60,(fBeta-90)*0.75));
 }
 
-// ═══════════════════════════════════
-// FULLSCREEN / 3D
-// ═══════════════════════════════════
+// ── CONTROLS ──────────────────────────────────────────
+function resetPos(){pos={...START};yaw=0;pitch=0;}
 function toggleFS(){
   if(!document.fullscreenElement){
     document.documentElement.requestFullscreen().catch(()=>{});
-    document.getElementById('btn-fs').textContent='✕ EXIT FULL';
-  } else {
-    document.exitFullscreen();
-  }
+    document.getElementById('bfs').textContent='✕ EXIT FULL';
+  } else { document.exitFullscreen(); }
 }
 document.addEventListener('fullscreenchange',()=>{
-  if(!document.fullscreenElement)
-    document.getElementById('btn-fs').textContent='⛶ FULLSCREEN';
+  if(!document.fullscreenElement)document.getElementById('bfs').textContent='⛶ FULLSCREEN';
 });
-
 function toggle3D(){
   mode3D=!mode3D;
-  document.getElementById('btn-3d').classList.toggle('active',mode3D);
-  document.getElementById('vr-sep').style.display=mode3D?'block':'none';
+  document.getElementById('b3d').classList.toggle('on',mode3D);
+  document.getElementById('vsep').style.display=mode3D?'block':'none';
 }
-
-const SPEEDS=[10,25,50,100,200,500,1000];
-let sIdx=3;
-function changeSpeed(d){
+function chSpd(d){
   sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
-  speed=SPEEDS[sIdx];
-  document.getElementById('speed-val').textContent=speed;
+  spd=SPEEDS[sIdx];document.getElementById('sv').textContent=spd;
 }
+window.addEventListener('resize',()=>{cv.width=window.innerWidth;cv.height=window.innerHeight;});
 
-window.addEventListener('resize',()=>{
-  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
-});
-
-// ═══════════════════════════════════
-// LOAD + INIT
-// ═══════════════════════════════════
-function prog(p,m){
-  document.getElementById('progress-fill').style.width=p+'%';
-  document.getElementById('load-status').textContent=m;
-}
-
+// ── LOAD ──────────────────────────────────────────────
+function lp(p,m){document.getElementById('pfill').style.width=p+'%';
+  document.getElementById('lstatus').textContent=m;}
 async function init(){
-  prog(5,'Fetching geometry…');
+  lp(5,'Fetching geometry…');
   const r=await fetch('chip_data.json');
-  prog(30,'Parsing JSON…');
-  chipData=await r.json();
-  prog(55,'Uploading layers…');
-
-  bufL130=uploadFlat(chipData.layer130.verts, chipData.layer130.indices);
-  prog(65,'Layer 2…');
-  bufL2  =uploadFlat(chipData.layer2.verts,   chipData.layer2.indices);
-  prog(72,'Layer 3…');
-  bufL3  =uploadFlat(chipData.layer3.verts,   chipData.layer3.indices);
-  prog(80,'Building cylinders…');
-  bufBumps  =buildCylinders(chipData.bumps);
-  prog(92,'Building scene…');
-  bufSiFloor=buildSiFloor();
-  bufQBox   =buildQBox();
-  prog(100,'Ready!');
-  setTimeout(()=>{
-    document.getElementById('loading').style.display='none';
-    requestAnimationFrame(fly);
-  },300);
+  lp(30,'Parsing…');
+  data=await r.json();
+  lp(55,'GPU: layers…');
+  bL130=flatBuf(data.layer130.verts,data.layer130.indices);
+  lp(63,'GPU: L2…');
+  bL2  =flatBuf(data.layer2.verts,  data.layer2.indices);
+  lp(70,'GPU: L3…');
+  bL3  =flatBuf(data.layer3.verts,  data.layer3.indices);
+  lp(78,'Building bumps…');
+  bBumps  =mkBumps(data.bumps);
+  lp(90,'Building scene…');
+  bSiFloor=mkSiFloor();
+  bSiCeil =mkSiCeil();
+  bQBox   =mkQBox();
+  lp(100,'Ready!');
+  setTimeout(()=>{document.getElementById('loading').style.display='none';
+    requestAnimationFrame(fly);},250);
 }
-init().catch(e=>{
-  document.getElementById('load-status').textContent='Error: '+e.message;
-  console.error(e);
-});
+init().catch(e=>{document.getElementById('lstatus').textContent='Error: '+e.message;console.error(e);});
 </script>
 </body>
 </html>
