@@ -3,63 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Superconducting Flip-Chip VR Flight</title>
+<title>Superconducting Flip-Chip VR</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#000; overflow:hidden; font-family:'Courier New',monospace; color:#0ff; }
-canvas { display:block; }
-#ui {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  pointer-events:none; z-index:10;
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#0ff;}
+canvas{display:block;}
+#ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
+#dashboard{
+  position:absolute;bottom:10px;left:10px;
+  background:rgba(0,15,30,0.88);border:1px solid #0ff;
+  border-radius:8px;padding:10px 14px;min-width:180px;pointer-events:none;
 }
-#dashboard {
-  position:absolute; bottom:10px; left:10px;
-  background:rgba(0,20,40,0.85); border:1px solid #0ff;
-  border-radius:8px; padding:10px 14px; min-width:180px;
-  pointer-events:none;
+#dashboard h3{font-size:11px;color:#0ff;letter-spacing:2px;margin-bottom:6px;}
+.dval{font-size:13px;color:#7ff;margin:2px 0;}
+#horizon-canvas{display:block;margin:6px auto;border:1px solid #0ff;border-radius:50%;}
+#controls{
+  position:absolute;bottom:10px;right:10px;
+  display:flex;flex-direction:column;gap:6px;pointer-events:all;
 }
-#dashboard h3 { font-size:11px; color:#0ff; letter-spacing:2px; margin-bottom:6px; }
-.dval { font-size:13px; color:#7ff; margin:2px 0; }
-#horizon-canvas { display:block; margin:6px auto; border:1px solid #0ff; border-radius:50%; }
-#controls {
-  position:absolute; bottom:10px; right:10px;
-  display:flex; flex-direction:column; gap:6px; pointer-events:all;
+.btn{
+  background:rgba(0,40,80,0.92);border:1px solid #0ff;
+  color:#0ff;padding:8px 14px;border-radius:6px;
+  font-family:'Courier New',monospace;font-size:12px;
+  cursor:pointer;text-align:center;min-width:100px;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;
 }
-.btn {
-  background:rgba(0,40,80,0.9); border:1px solid #0ff;
-  color:#0ff; padding:8px 14px; border-radius:6px;
-  font-family:'Courier New',monospace; font-size:12px;
-  cursor:pointer; text-align:center; min-width:90px;
-  user-select:none; -webkit-user-select:none;
+.btn:active{background:rgba(0,80,160,0.9);}
+.btn.active{background:rgba(0,100,0,0.9);border-color:#0f0;color:#0f0;}
+#speed-display{
+  position:absolute;top:10px;right:10px;
+  background:rgba(0,15,30,0.88);border:1px solid #0ff;
+  border-radius:6px;padding:6px 12px;font-size:12px;pointer-events:all;
 }
-.btn:active { background:rgba(0,80,160,0.9); }
-.btn.active { background:rgba(0,100,0,0.9); border-color:#0f0; color:#0f0; }
-#speed-display {
-  position:absolute; top:10px; right:10px;
-  background:rgba(0,20,40,0.85); border:1px solid #0ff;
-  border-radius:6px; padding:6px 12px; font-size:12px;
-  pointer-events:all;
+#loading{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:#000;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:100;
+  color:#0ff;font-size:16px;gap:12px;
 }
-#loading {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  background:#000; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; z-index:100;
-  color:#0ff; font-size:16px; gap:12px;
+#progress-bar{width:300px;height:4px;background:#002;border:1px solid #0ff;border-radius:2px;}
+#progress-fill{height:100%;background:#0ff;width:0%;transition:width 0.2s;}
+#collision-flash{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(255,80,0,0.35);pointer-events:none;display:none;z-index:20;
 }
-#progress-bar {
-  width:300px; height:4px; background:#002;
-  border:1px solid #0ff; border-radius:2px;
-}
-#progress-fill { height:100%; background:#0ff; width:0%; transition:width 0.2s; }
-#collision-flash {
-  position:fixed; top:0; left:0; width:100%; height:100%;
-  background:rgba(255,100,0,0.3); pointer-events:none;
-  display:none; z-index:20;
-}
-#vr-separator {
-  position:fixed; top:0; left:50%; width:2px; height:100%;
-  background:#111; z-index:9; display:none;
-}
+#vr-sep{position:fixed;top:0;left:50%;width:3px;height:100%;background:#000;z-index:9;display:none;}
 </style>
 </head>
 <body>
@@ -69,664 +57,560 @@ canvas { display:block; }
   <div id="progress-bar"><div id="progress-fill"></div></div>
 </div>
 <div id="collision-flash"></div>
-<div id="vr-separator"></div>
+<div id="vr-sep"></div>
 <canvas id="c"></canvas>
 <div id="ui">
   <div id="dashboard">
     <h3>◈ COCKPIT</h3>
     <canvas id="horizon-canvas" width="80" height="80"></canvas>
-    <div class="dval" id="d-alt">Alt: 20.0 µm</div>
-    <div class="dval" id="d-pos">X: 8300 µm</div>
-    <div class="dval" id="d-posy">Y: 8300 µm</div>
-    <div class="dval" id="d-pitch">Pitch: 0.0°</div>
+    <div class="dval" id="d-alt">Alt: 40.0 µm</div>
+    <div class="dval" id="d-pos">X: 0 µm</div>
+    <div class="dval" id="d-posy">Y: 0 µm</div>
+    <div class="dval" id="d-hdg">Hdg: 0°</div>
     <div class="dval" id="d-zone">Zone: Q-CHIP</div>
   </div>
   <div id="controls">
-    <div class="btn" id="btn-3d" onclick="toggle3D()">📱 3D MODE</div>
-    <div class="btn" id="btn-gyro" onclick="toggleGyro()">🧭 GYRO</div>
+    <div class="btn" id="btn-fs"   onclick="toggleFS()">⛶ FULLSCREEN</div>
+    <div class="btn" id="btn-3d"   onclick="toggle3D()">📱 3D MODE</div>
+    <div class="btn" id="btn-gyro" onclick="toggleGyro()">🧭 GYRO ON</div>
     <div class="btn" onclick="changeSpeed(-1)">🐢 SLOWER</div>
     <div class="btn" onclick="changeSpeed(1)">🐇 FASTER</div>
   </div>
   <div id="speed-display">Speed: <span id="speed-val">100</span> µm/s</div>
 </div>
 <script>
-// ═══════════════════════════════════════════════════════
-//  CONSTANTS (all in micrometers)
-// ═══════════════════════════════════════════════════════
-const C_SIZE   = 16400;   // C-chip (bottom) side length
-const Q_SIZE   = 11500;   // Q-chip (top)  side length
-const GAP      = 80;      // DOUBLED: 80 um between Nb surfaces
-const NB_T     = 0.5;     // Nb thickness um
-const CHIP_CX  = 8300;    // center x
-const CHIP_CY  = 8300;    // center y
-// Q-chip covers [CHIP_CX - Q_SIZE/2, CHIP_CX + Q_SIZE/2] in X and Y
-const Q_MIN    = CHIP_CX - Q_SIZE/2;  // 2550
-const Q_MAX    = CHIP_CX + Q_SIZE/2;  // 14050
-const C_MIN    = CHIP_CX - C_SIZE/2;  // 100
-const C_MAX    = CHIP_CX + C_SIZE/2;  // 16500
-// Flight altitude: 0 = on bottom Nb surface, GAP = on top Nb surface
-// Player is confined between 0 and GAP, floating in the middle
-const PLAYER_RADIUS = 5; // um — collision radius
+// ═══════════════════════════════════
+// CONSTANTS (micrometers)
+// ═══════════════════════════════════
+const CHIP_CX=8300, CHIP_CY=8300;
+const C_SIZE=16400, Q_SIZE=11500;
+const C_MIN=CHIP_CX-C_SIZE/2, C_MAX=CHIP_CX+C_SIZE/2;
+const Q_MIN=CHIP_CX-Q_SIZE/2, Q_MAX=CHIP_CX+Q_SIZE/2;
+const GAP=80;           // um between Nb surfaces
+const NB_T=0.5;         // Nb thickness
+const P_RAD=4;          // player collision radius
+const SEGS=20;          // cylinder segments
 
-// ═══════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════
-let chipData = null;
-let gl = null, gl2 = null;
-let mode3D = false, gyroActive = false;
-let speed = 100; // um/s
+// ═══════════════════════════════════
+// STATE
+// ═══════════════════════════════════
+let chipData=null;
+let mode3D=false, gyroActive=false;
+let speed=100;
+let pos={x:CHIP_CX, y:CHIP_CY, z:GAP/2};
+let yaw=0, pitch=0;
+let inCollision=false;
 
-let pos = { x: CHIP_CX, y: CHIP_CY, z: GAP/2 };
-let yaw = 0, pitch = 0; // degrees
+// ═══════════════════════════════════
+// CANVAS + WebGL
+// ═══════════════════════════════════
+const canvas=document.getElementById('c');
+canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+const gl=canvas.getContext('webgl',{antialias:true,depth:true});
+gl.getExtension('OES_element_index_uint');
 
-// Gyro/device orientation
-let devAlpha = 0, devBeta = 0, devGamma = 0;
-let gyroYawBase = 0, gyroPitchBase = 0;
-
-// Collision state
-let collisionVx=0, collisionVy=0, collisionVz=0;
-let inCollision = false;
-
-// ═══════════════════════════════════════════════════════
-//  WebGL context and programs
-// ═══════════════════════════════════════════════════════
-const canvas = document.getElementById('c');
-canvas.width  = window.innerWidth;
-canvas.height = window.innerHeight;
-gl = canvas.getContext('webgl', { antialias:true });
-if (!gl) alert('WebGL not supported');
-
-// ─── Shaders (with point-light from player) ────────────
-const vsFlat = `
-attribute vec2 aPos;
+// ═══════════════════════════════════
+// SHADERS
+// ═══════════════════════════════════
+// Flat layer shader (Nb planes) — simple diffuse, high ambient
+const VS_FLAT=`
+attribute vec2 aXZ;
 uniform mat4 uMVP;
-uniform float uZ;
-varying vec3 vWorld;
+uniform float uY;
+varying vec2 vXZ;
 void main(){
-  vWorld = vec3(aPos.x, uZ, aPos.y);
-  gl_Position = uMVP * vec4(aPos.x, uZ, aPos.y, 1.0);
+  vXZ=aXZ;
+  gl_Position=uMVP*vec4(aXZ.x,uY,aXZ.y,1.0);
 }`;
-
-const fsFlatColor = `
+const FS_FLAT=`
 precision mediump float;
-uniform vec4 uColor;
-uniform vec3 uLight;   // player world pos
-uniform vec3 uNormal;  // face normal
-varying vec3 vWorld;
+uniform vec4  uCol;
+uniform vec3  uEye;    // eye world pos
+uniform float uY;
+varying vec2  vXZ;
 void main(){
-  vec3 toL = uLight - vWorld;
-  float dist = length(toL);
-  float atten = 1.0 / (1.0 + dist*dist * 0.0000004);
-  float diff = max(dot(normalize(toL), normalize(uNormal)), 0.0);
-  float ambient = 0.08;
-  float light = ambient + diff * atten * 1.8;
-  gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+  // Distance-based diffuse: brighter when closer
+  vec3 frag=vec3(vXZ.x,uY,vXZ.y);
+  float d=length(uEye-frag);
+  float bright=clamp(1.0-d/5000.0,0.0,1.0);
+  bright=0.55+bright*0.45;  // 0.55 min ambient, up to 1.0 nearby
+  gl_FragColor=vec4(uCol.rgb*bright, uCol.a);
 }`;
 
-const vsCylinder = `
+// 3D object shader (bumps, boxes, floor) — full Phong
+const VS_3D=`
 attribute vec3 aPos;
+attribute vec3 aNrm;
 uniform mat4 uMVP;
-varying vec3 vWorld;
+varying vec3 vPos;
+varying vec3 vNrm;
 void main(){
-  vWorld = aPos;
-  gl_Position = uMVP * vec4(aPos,1.0);
+  vPos=aPos; vNrm=aNrm;
+  gl_Position=uMVP*vec4(aPos,1.0);
 }`;
-
-const fsCylinder = `
+const FS_3D=`
 precision mediump float;
-uniform vec4 uColor;
-uniform vec3 uLight;
-uniform vec3 uCylCenter; // for bumps: approximate normal from center
-varying vec3 vWorld;
+uniform vec4 uCol;
+uniform vec3 uEye;
+varying vec3 vPos;
+varying vec3 vNrm;
 void main(){
-  vec3 toL = uLight - vWorld;
-  float dist = length(toL);
-  float atten = 1.0 / (1.0 + dist*dist * 0.0000004);
-  // approximate normal: horizontal outward from cylinder center
-  vec3 n = normalize(vec3(vWorld.x - uCylCenter.x, 0.0, vWorld.z - uCylCenter.z));
-  if(length(n) < 0.01) n = vec3(0,1,0); // caps
-  float diff = max(dot(normalize(toL), n), 0.0);
-  float ambient = 0.06;
-  float light = ambient + diff * atten * 2.2;
-  gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+  vec3 N=normalize(vNrm);
+  vec3 L=normalize(uEye-vPos);
+  vec3 V=L; // viewer == light
+  vec3 H=normalize(L+V);
+  float d=length(uEye-vPos);
+  float att=clamp(1.0-d/8000.0,0.0,1.0);
+  float diff=max(dot(N,L),0.0);
+  float spec=pow(max(dot(N,H),0.0),48.0)*0.7;
+  float rim=pow(1.0-max(dot(N,V),0.0),2.5)*0.25;
+  float light=0.50+diff*att*1.0+spec*att+rim;
+  gl_FragColor=vec4(uCol.rgb*light,uCol.a);
 }`;
 
-function mkShader(gl, type, src){
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src); gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-    console.error(gl.getShaderInfoLog(s));
+function mkSh(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));
   return s;
 }
-function mkProg(gl, vs, fs){
-  const p = gl.createProgram();
-  gl.attachShader(p, mkShader(gl, gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, mkShader(gl, gl.FRAGMENT_SHADER, fs));
+function mkProg(vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,mkSh(gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,mkSh(gl.FRAGMENT_SHADER,fs));
   gl.linkProgram(p);
   return p;
 }
+const progFlat=mkProg(VS_FLAT,FS_FLAT);
+const prog3D  =mkProg(VS_3D,  FS_3D);
 
-const flatProg = mkProg(gl, vsFlat, fsFlatColor);
-const cylProg  = mkProg(gl, vsCylinder, fsCylinder);
+// ═══════════════════════════════════
+// COLORS
+// ═══════════════════════════════════
+// Nb: bright silver-white
+const C_NB_BOT=[0.90,0.93,0.98,1];
+const C_NB_TOP=[0.85,0.89,0.95,1];
+// Silicon: dark blue-grey
+const C_SI    =[0.07,0.10,0.20,1];
+// Indium bumps: dark green with metallic sheen
+const C_IN    =[0.08,0.48,0.18,1];
+// Q-chip side: deep navy
+const C_QSIDE =[0.06,0.08,0.18,1];
+// Background: near-black with slight blue tint
+const C_BG    =[0.01,0.01,0.04,1];
 
-// ─── GPU Buffers ────────────────────────────────────────
-let bufL130verts, bufL130idx, cntL130;
-let bufL2verts,   bufL2idx,   cntL2;
-let bufL3verts,   bufL3idx,   cntL3;
-let bumpVerts, bumpIdx, bumpCount;
+// ═══════════════════════════════════
+// MATRIX UTILS
+// ═══════════════════════════════════
+function m4(){return new Float32Array(16);}
+function ident(m){
+  for(let i=0;i<16;i++)m[i]=0;
+  m[0]=m[5]=m[10]=m[15]=1; return m;
+}
+function mulM(a,b,o){
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+    let s=0;for(let k=0;k<4;k++)s+=a[r+k*4]*b[k+c*4];
+    o[r+c*4]=s;
+  }return o;
+}
+function persp(fov,asp,n,f,m){
+  const t=1/Math.tan(fov*Math.PI/360); ident(m);
+  m[0]=t/asp;m[5]=t;m[10]=(f+n)/(n-f);m[11]=-1;m[14]=2*f*n/(n-f);m[15]=0;
+  return m;
+}
+function rotY(a,m){ident(m);const c=Math.cos(a),s=Math.sin(a);m[0]=c;m[8]=s;m[2]=-s;m[10]=c;return m;}
+function rotX(a,m){ident(m);const c=Math.cos(a),s=Math.sin(a);m[5]=c;m[6]=-s;m[9]=s;m[10]=c;return m;}
+function trans(x,y,z,m){ident(m);m[12]=x;m[13]=y;m[14]=z;return m;}
 
-const SEGS = 16; // cylinder segments per bump
+const mP=m4(),mRY=m4(),mRX=m4(),mT=m4(),mMVP=m4(),mTmp=m4();
+function buildMVP(ex,ey,ez,yDeg,pDeg,fov,asp){
+  persp(fov,asp,0.5,100000,mP);
+  rotY(-yDeg*Math.PI/180,mRY);
+  rotX(-pDeg*Math.PI/180,mRX);
+  trans(-ex,-ey,-ez,mT);
+  mulM(mRY,mT,mTmp); mulM(mRX,mTmp,mTmp); mulM(mP,mTmp,mMVP);
+}
 
-function buildCylinderBatch(bumps){
-  // All bumps as a single draw call — flat-top cylinders
-  const vArr = [], iArr = [];
-  let base = 0;
-  const r = 20; // um radius
-  const bot = 0, top = GAP; // uses updated GAP=80
-  for (const [cx,cy] of bumps){
-    // bottom circle + top circle + sides
-    for (let s=0;s<SEGS;s++){
-      const a = (s/SEGS)*Math.PI*2;
-      const x = cx + r*Math.cos(a);
-      const z = cy + r*Math.sin(a);
-      vArr.push(x, bot, z);
-      vArr.push(x, top, z);
+// ═══════════════════════════════════
+// BUFFER HELPERS
+// ═══════════════════════════════════
+function makeBuf(data,target){
+  const b=gl.createBuffer();
+  gl.bindBuffer(target,b);
+  gl.bufferData(target,data,gl.STATIC_DRAW);
+  return b;
+}
+function uploadFlat(verts,idxs){
+  return{
+    vb:makeBuf(new Float32Array(verts),gl.ARRAY_BUFFER),
+    ib:makeBuf(new Uint32Array(idxs),gl.ELEMENT_ARRAY_BUFFER),
+    n:idxs.length
+  };
+}
+function upload3D(verts,idxs){// verts: x,y,z,nx,ny,nz interleaved
+  return{
+    vb:makeBuf(new Float32Array(verts),gl.ARRAY_BUFFER),
+    ib:makeBuf(new Uint32Array(idxs),gl.ELEMENT_ARRAY_BUFFER),
+    n:idxs.length
+  };
+}
+
+// ═══════════════════════════════════
+// DRAW FLAT LAYER (Nb planes)
+// ═══════════════════════════════════
+let gEyeX=0,gEyeY=0,gEyeZ=0;
+
+function uLoc(p,n){return gl.getUniformLocation(p,n);}
+function drawFlat(buf,yH,col){
+  gl.useProgram(progFlat);
+  gl.uniformMatrix4fv(uLoc(progFlat,'uMVP'),false,mMVP);
+  gl.uniform4fv(uLoc(progFlat,'uCol'),col);
+  gl.uniform1f(uLoc(progFlat,'uY'),yH);
+  gl.uniform3f(uLoc(progFlat,'uEye'),gEyeX,gEyeY,gEyeZ);
+  const aXZ=gl.getAttribLocation(progFlat,'aXZ');
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
+  gl.enableVertexAttribArray(aXZ);
+  gl.vertexAttribPointer(aXZ,2,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ib);
+  gl.drawElements(gl.TRIANGLES,buf.n,gl.UNSIGNED_INT,0);
+}
+
+// ═══════════════════════════════════
+// DRAW 3D OBJECT (bumps, box, floor)
+// ═══════════════════════════════════
+function draw3D(buf,col){
+  gl.useProgram(prog3D);
+  gl.uniformMatrix4fv(uLoc(prog3D,'uMVP'),false,mMVP);
+  gl.uniform4fv(uLoc(prog3D,'uCol'),col);
+  gl.uniform3f(uLoc(prog3D,'uEye'),gEyeX,gEyeY,gEyeZ);
+  const aPos=gl.getAttribLocation(prog3D,'aPos');
+  const aNrm=gl.getAttribLocation(prog3D,'aNrm');
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(aNrm);
+  gl.vertexAttribPointer(aNrm,3,gl.FLOAT,false,24,12);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf.ib);
+  gl.drawElements(gl.TRIANGLES,buf.n,gl.UNSIGNED_INT,0);
+}
+
+// ═══════════════════════════════════
+// GEOMETRY BUILDERS
+// ═══════════════════════════════════
+function buildCylinders(bumps){
+  const vArr=[],iArr=[];
+  let base=0;
+  for(const [cx,cy] of bumps){
+    const r=20, bot=0, top=GAP;
+    // sides with per-vertex normals
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2;
+      const nx=Math.cos(a), nz=Math.sin(a);
+      const x=cx+r*nx, z=cy+r*nz;
+      vArr.push(x,bot,z,nx,0,nz,  x,top,z,nx,0,nz);
     }
-    // sides
-    for (let s=0;s<SEGS;s++){
-      const n = (s+1)%SEGS;
-      const b0=base+s*2, t0=base+s*2+1, b1=base+n*2, t1=base+n*2+1;
+    for(let s=0;s<SEGS;s++){
+      const n=(s+1)%SEGS;
+      const b0=base+s*2,t0=base+s*2+1,b1=base+n*2,t1=base+n*2+1;
       iArr.push(b0,b1,t0, b1,t1,t0);
     }
-    // top cap (fan from first top vertex)
-    const topBase = base+1;
-    for (let s=1;s<SEGS-1;s++)
-      iArr.push(topBase, topBase+s*2, topBase+(s+1)*2);
-    // bottom cap
-    for (let s=1;s<SEGS-1;s++)
-      iArr.push(base, base+(s+1)*2, base+s*2);
-    base += SEGS*2;
+    // top cap
+    const tc=base+SEGS*2;
+    vArr.push(cx,top,cy, 0,1,0);
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2;
+      vArr.push(cx+r*Math.cos(a),top,cy+r*Math.sin(a), 0,1,0);
+    }
+    for(let s=0;s<SEGS;s++) iArr.push(tc,tc+1+s,tc+1+(s+1)%SEGS);
+    // bot cap
+    const bc=tc+SEGS+1;
+    vArr.push(cx,bot,cy, 0,-1,0);
+    for(let s=0;s<SEGS;s++){
+      const a=(s/SEGS)*Math.PI*2;
+      vArr.push(cx+r*Math.cos(a),bot,cy+r*Math.sin(a), 0,-1,0);
+    }
+    for(let s=0;s<SEGS;s++) iArr.push(bc,bc+1+(s+1)%SEGS,bc+1+s);
+    base+=SEGS*2+(SEGS+1)*2;
   }
-  return { vArr: new Float32Array(vArr), iArr: new Uint32Array(iArr) };
+  return upload3D(vArr,iArr);
 }
 
-function uploadFlat(gl, verts, indices){
-  const vb = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-  const ib = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.STATIC_DRAW);
-  const ext = gl.getExtension('OES_element_index_uint');
-  return { vb, ib, count: indices.length };
+function buildSiFloor(){
+  const m=C_MIN,mx=C_MAX,y=-NB_T;
+  return upload3D(
+    [m,y,m,0,1,0, mx,y,m,0,1,0, mx,y,mx,0,1,0, m,y,mx,0,1,0],
+    [0,1,2,0,2,3]
+  );
 }
 
-// ─── Matrix utils ───────────────────────────────────────
-function mat4(){return new Float32Array(16);}
-function identity(m){
-  m[0]=1;m[5]=1;m[10]=1;m[15]=1;
-  m[1]=m[2]=m[3]=m[4]=m[6]=m[7]=m[8]=m[9]=m[11]=m[12]=m[13]=m[14]=0;
-  return m;
-}
-function perspective(fov, asp, near, far, m){
-  const f=1/Math.tan(fov*Math.PI/360);
-  identity(m);
-  m[0]=f/asp; m[5]=f;
-  m[10]=(far+near)/(near-far); m[11]=-1;
-  m[14]=(2*far*near)/(near-far); m[15]=0;
-  return m;
-}
-function mulMat(a,b,out){
-  for(let r=0;r<4;r++) for(let c=0;c<4;c++){
-    let s=0; for(let k=0;k<4;k++) s+=a[r+k*4]*b[k+c*4];
-    out[r+c*4]=s;
-  }
-  return out;
-}
-function rotY(a,m){
-  identity(m); const c=Math.cos(a),s=Math.sin(a);
-  m[0]=c; m[8]=s; m[2]=-s; m[10]=c; return m;
-}
-function rotX(a,m){
-  identity(m); const c=Math.cos(a),s=Math.sin(a);
-  m[5]=c; m[6]=-s; m[9]=s; m[10]=c; return m;
-}
-function translate(tx,ty,tz,m){
-  identity(m); m[12]=tx; m[13]=ty; m[14]=tz; return m;
+function buildQBox(){
+  const x0=Q_MIN,x1=Q_MAX,z0=Q_MIN,z1=Q_MAX,yb=GAP,yt=GAP+300;
+  function face(p,n){const r=[];for(const v of p)r.push(...v,...n);return r;}
+  const v=[
+    ...face([[x0,yt,z0],[x1,yt,z0],[x1,yt,z1],[x0,yt,z1]],[0,1,0]),
+    ...face([[x0,yb,z0],[x1,yb,z0],[x1,yb,z1],[x0,yb,z1]],[0,-1,0]),
+    ...face([[x0,yb,z0],[x1,yb,z0],[x1,yt,z0],[x0,yt,z0]],[0,0,-1]),
+    ...face([[x1,yb,z0],[x1,yb,z1],[x1,yt,z1],[x1,yt,z0]],[1,0,0]),
+    ...face([[x1,yb,z1],[x0,yb,z1],[x0,yt,z1],[x1,yt,z1]],[0,0,1]),
+    ...face([[x0,yb,z1],[x0,yb,z0],[x0,yt,z0],[x0,yt,z1]],[-1,0,0]),
+  ];
+  const idx=[];
+  for(let f=0;f<6;f++) idx.push(f*4,f*4+1,f*4+2, f*4,f*4+2,f*4+3);
+  return upload3D(v,idx);
 }
 
-// ═══════════════════════════════════════════════════════
-//  DRAW
-// ═══════════════════════════════════════════════════════
-const P=mat4(), RY=mat4(), RX=mat4(), T=mat4(), MVP=mat4(), tmp=mat4();
+// ═══════════════════════════════════
+// RENDER
+// ═══════════════════════════════════
+let bufL130=null,bufL2=null,bufL3=null,bufBumps=null,bufSiFloor=null,bufQBox=null;
 
-function buildMVP(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,fov,asp){
-  perspective(fov, asp, 1, 80000, P);
-  rotY(-yawDeg*Math.PI/180, RY);
-  rotX(-pitchDeg*Math.PI/180, RX);
-  translate(-eyeX,-eyeY,-eyeZ, T);
-  // MVP = P * RX * RY * T
-  mulMat(RY,T,tmp);
-  mulMat(RX,tmp,tmp);
-  mulMat(P,tmp,MVP);
-  return MVP;
-}
-
-// colors (RGBA) — dark environment, player casts light
-const COL_NB_BOT  = [0.82, 0.85, 0.92, 1.0]; // light grey-silver Nb bottom
-const COL_NB_TOP  = [0.78, 0.82, 0.90, 1.0]; // light grey-silver Nb top
-const COL_SI_DARK = [0.06, 0.09, 0.18, 1.0]; // deep blue-grey silicon
-const COL_IN_BUMP = [1.00, 0.88, 0.15, 1.0]; // bright yellow indium
-const COL_QCHIP   = [0.05, 0.07, 0.15, 1.0]; // dark blue-grey Si side
-const COL_SKY_BOT = [0.00, 0.00, 0.02, 1.0]; // near-black deep space
-
-function setUniform4f(prog,name,v){
-  gl.uniform4f(gl.getUniformLocation(prog,name),v[0],v[1],v[2],v[3]);
-}
-function setUniformMat(prog,name,m){
-  gl.uniformMatrix4fv(gl.getUniformLocation(prog,name),false,m);
-}
-function setUniform1f(prog,name,v){
-  gl.uniform1f(gl.getUniformLocation(prog,name),v);
-}
-
-function setUniform3f(prog,name,x,y,z){
-  gl.uniform3f(gl.getUniformLocation(prog,name),x,y,z);
-}
-
-// Current player world pos for lighting (set before each draw)
-let lightX=0,lightY=0,lightZ=0;
-
-function drawFlatLayer(buf, yHeight, color, normalY){
-  gl.useProgram(flatProg);
-  setUniformMat(flatProg,'uMVP',MVP);
-  setUniform4f(flatProg,'uColor',color);
-  setUniform1f(flatProg,'uZ', yHeight);
-  setUniform3f(flatProg,'uLight', lightX,lightY,lightZ);
-  setUniform3f(flatProg,'uNormal', 0, normalY||1, 0);
-  const loc = gl.getAttribLocation(flatProg,'aPos');
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf.vb);
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.ib);
-  gl.drawElements(gl.TRIANGLES, buf.count, gl.UNSIGNED_INT, 0);
-}
-
-function drawBumps(mvp){
-  if(!bumpVerts) return;
-  gl.useProgram(cylProg);
-  setUniformMat(cylProg,'uMVP',mvp);
-  setUniform4f(cylProg,'uColor',COL_IN_BUMP);
-  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
-  setUniform3f(cylProg,'uCylCenter', lightX,lightY,lightZ); // approximate — good enough
-  const loc = gl.getAttribLocation(cylProg,'aPos');
-  gl.bindBuffer(gl.ARRAY_BUFFER, bumpVerts);
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bumpIdx);
-  gl.drawElements(gl.TRIANGLES, bumpCount, gl.UNSIGNED_INT, 0);
-}
-
-// Draw Q-chip as a solid box (for when flying outside)
-function drawQChipBox(mvp){
-  if(!qboxVerts) return;
-  gl.useProgram(cylProg);
-  setUniformMat(cylProg,'uMVP',mvp);
-  setUniform4f(cylProg,'uColor',COL_QCHIP);
-  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
-  setUniform3f(cylProg,'uCylCenter', CHIP_CX, GAP+150, CHIP_CY);
-  const loc = gl.getAttribLocation(cylProg,'aPos');
-  gl.bindBuffer(gl.ARRAY_BUFFER, qboxVerts);
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, qboxIdx);
-  gl.drawElements(gl.TRIANGLES, qboxCount, gl.UNSIGNED_INT, 0);
-}
-
-let qboxVerts=null, qboxIdx=null, qboxCount=0;
-
-function buildQChipBox(){
-  // 300 um high Q-chip box, positioned at GAP height (its bottom = GAP, top = GAP+300)
-  const xmin=Q_MIN, xmax=Q_MAX, zmin=Q_MIN, zmax=Q_MAX;
-  const ybot=GAP, ytop=GAP+300;
-  const vArr = new Float32Array([
-    xmin,ybot,zmin, xmax,ybot,zmin, xmax,ybot,zmax, xmin,ybot,zmax,
-    xmin,ytop,zmin, xmax,ytop,zmin, xmax,ytop,zmax, xmin,ytop,zmax,
-  ]);
-  const iArr = new Uint32Array([
-    // top face
-    4,5,6, 4,6,7,
-    // sides
-    0,1,5, 0,5,4,
-    1,2,6, 1,6,5,
-    2,3,7, 2,7,6,
-    3,0,4, 3,4,7,
-  ]);
-  qboxVerts = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, qboxVerts);
-  gl.bufferData(gl.ARRAY_BUFFER, vArr, gl.STATIC_DRAW);
-  qboxIdx = gl.createBuffer();
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, qboxIdx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, iArr, gl.STATIC_DRAW);
-  qboxCount = iArr.length;
-}
-
-function renderEye(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,vpX,vpW,vpH){
-  gl.viewport(vpX, 0, vpW, vpH);
-  gl.clearColor(...COL_SKY_BOT, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+function renderEye(ex,ey,ez,yDeg,pDeg,vpX,vpW,vpH){
+  gl.viewport(vpX,0,vpW,vpH);
+  gl.clearColor(...C_BG);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
 
-  const asp = vpW/vpH;
-  buildMVP(eyeX,eyeY,eyeZ,yawDeg,pitchDeg,70,asp);
+  buildMVP(ex,ey,ez,yDeg,pDeg,70,vpW/vpH);
+  gEyeX=ex; gEyeY=ey; gEyeZ=ez;
 
-  // Player is the light source
-  lightX=eyeX; lightY=eyeY; lightZ=eyeZ;
-
-  // Silicon floor
-  drawSiliconFloor();
-
-  // Bottom Nb: normal points UP (+Y) toward player
-  if(bufL130verts) drawFlatLayer(bufL130verts, 0, COL_NB_BOT, 1);
-
-  // Top Nb: normal points DOWN (-Y) toward player
-  if(bufL2verts)   drawFlatLayer(bufL2verts,   GAP, COL_NB_TOP, -1);
-  if(bufL3verts)   drawFlatLayer(bufL3verts,   GAP, COL_NB_TOP, -1);
-
-  drawQChipBox(MVP);
-  drawBumps(MVP);
-}
-
-// Silicon floor: a large quad covering the C-chip area
-let sfVerts=null, sfIdx=null;
-function buildSiliconFloor(){
-  const m=C_MIN, mx=C_MAX, y=-NB_T;
-  const v=new Float32Array([m,y,m, mx,y,m, mx,y,mx, m,y,mx]);
-  const i=new Uint32Array([0,1,2, 0,2,3]);
-  sfVerts=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,sfVerts); gl.bufferData(gl.ARRAY_BUFFER,v,gl.STATIC_DRAW);
-  sfIdx=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,sfIdx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,i,gl.STATIC_DRAW);
-}
-function drawSiliconFloor(){
-  if(!sfVerts) return;
-  gl.useProgram(cylProg);
-  setUniformMat(cylProg,'uMVP',MVP);
-  setUniform4f(cylProg,'uColor',COL_SI_DARK);
-  setUniform3f(cylProg,'uLight', lightX,lightY,lightZ);
-  setUniform3f(cylProg,'uCylCenter', CHIP_CX, -NB_T, CHIP_CY);
-  const loc=gl.getAttribLocation(cylProg,'aPos');
-  gl.bindBuffer(gl.ARRAY_BUFFER,sfVerts); gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,sfIdx);
-  gl.drawElements(gl.TRIANGLES,6,gl.UNSIGNED_INT,0);
+  // Draw order: far to near roughly
+  draw3D(bufSiFloor, C_SI);
+  if(bufL130) drawFlat(bufL130, 0,   C_NB_BOT);
+  if(bufL2)   drawFlat(bufL2,   GAP, C_NB_TOP);
+  if(bufL3)   drawFlat(bufL3,   GAP, C_NB_TOP);
+  draw3D(bufQBox,   C_QSIDE);
+  draw3D(bufBumps,  C_IN);
 }
 
 function render(){
-  const W=canvas.width, H=canvas.height;
-  const eyeX=pos.x, eyeY=pos.z, eyeZ=pos.y; // map z->Y in WebGL
-  const p = Math.max(-60, Math.min(60, pitch));
-
+  const W=canvas.width,H=canvas.height;
+  // WebGL Y = altitude (pos.z), chip X/Z map to pos.x/pos.y
+  const ex=pos.x, ey=pos.z, ez=pos.y;
+  const pc=Math.max(-65,Math.min(65,pitch));
   if(mode3D){
-    const IPD=300; // interpupillary distance in um
-    const s=Math.sin(yaw*Math.PI/180), c=Math.cos(yaw*Math.PI/180);
-    const dx=IPD/2*c, dz=IPD/2*s; // not needed for simple 3D split
-    renderEye(eyeX,eyeY,eyeZ, yaw,p, 0,    W/2, H);
-    renderEye(eyeX,eyeY,eyeZ, yaw,p, W/2,  W/2, H);
+    renderEye(ex,ey,ez,yaw,pc, 0,   W/2,H);
+    renderEye(ex,ey,ez,yaw,pc, W/2, W/2,H);
   } else {
-    renderEye(eyeX,eyeY,eyeZ, yaw,p, 0, W, H);
+    renderEye(ex,ey,ez,yaw,pc, 0,W,H);
   }
-  drawHorizon(p);
-  updateDashboard();
+  drawHorizon(pc,yaw);
+  updateHUD();
 }
 
-// ═══════════════════════════════════════════════════════
-//  ARTIFICIAL HORIZON
-// ═══════════════════════════════════════════════════════
-const hc = document.getElementById('horizon-canvas');
-const hctx = hc.getContext('2d');
-function drawHorizon(pitchDeg){
-  const w=80,h=80,cx2=40,cy2=40,r=36;
-  hctx.clearRect(0,0,w,h);
-  hctx.save();
-  hctx.beginPath(); hctx.arc(cx2,cy2,r,0,Math.PI*2); hctx.clip();
-  const off = (pitchDeg/90)*r;
-  // sky = space
-  hctx.fillStyle='#001122'; hctx.fillRect(0,0,w,h);
-  // "ground" = chip below
-  hctx.fillStyle='#331100';
-  hctx.fillRect(0,cy2+off,w,h);
-  // horizon line
-  hctx.strokeStyle='#0ff'; hctx.lineWidth=1.5;
-  hctx.beginPath(); hctx.moveTo(0,cy2+off); hctx.lineTo(w,cy2+off); hctx.stroke();
-  // center cross
-  hctx.strokeStyle='#fff'; hctx.lineWidth=1;
-  hctx.beginPath(); hctx.moveTo(cx2-10,cy2); hctx.lineTo(cx2+10,cy2); hctx.stroke();
-  hctx.beginPath(); hctx.moveTo(cx2,cy2-6); hctx.lineTo(cx2,cy2+6); hctx.stroke();
-  hctx.restore();
-  // border
-  hctx.strokeStyle='#0ff'; hctx.lineWidth=1;
-  hctx.beginPath(); hctx.arc(cx2,cy2,r,0,Math.PI*2); hctx.stroke();
+// ═══════════════════════════════════
+// ARTIFICIAL HORIZON
+// ═══════════════════════════════════
+const hc=document.getElementById('horizon-canvas');
+const hx=hc.getContext('2d');
+function drawHorizon(pDeg,yDeg){
+  const w=80,h=80,cx=40,cy=40,r=36;
+  hx.clearRect(0,0,w,h);
+  hx.save();
+  hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.clip();
+  const off=(pDeg/90)*r;
+  // sky (above horizon)
+  hx.fillStyle='#000814';hx.fillRect(0,0,w,h);
+  // ground (below)
+  hx.fillStyle='#0a1a0a';hx.fillRect(0,cy+off,w,h-cy-off+4);
+  // horizon
+  hx.strokeStyle='#00ffaa';hx.lineWidth=1.5;
+  hx.beginPath();hx.moveTo(0,cy+off);hx.lineTo(w,cy+off);hx.stroke();
+  // airplane symbol
+  hx.strokeStyle='#ffffff';hx.lineWidth=1.5;
+  hx.beginPath();hx.moveTo(cx-12,cy);hx.lineTo(cx-4,cy);hx.stroke();
+  hx.beginPath();hx.moveTo(cx+4,cy);hx.lineTo(cx+12,cy);hx.stroke();
+  hx.beginPath();hx.arc(cx,cy,2.5,0,Math.PI*2);hx.fillStyle='#fff';hx.fill();
+  hx.restore();
+  hx.strokeStyle='#0ff';hx.lineWidth=1;
+  hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.stroke();
 }
 
-function updateDashboard(){
-  const inQ = pos.x>Q_MIN && pos.x<Q_MAX && pos.y>Q_MIN && pos.y<Q_MAX;
-  document.getElementById('d-alt').textContent  = `Alt: ${pos.z.toFixed(1)} µm`;
-  document.getElementById('d-pos').textContent  = `X: ${(pos.x-CHIP_CX).toFixed(0)} µm`;
-  document.getElementById('d-posy').textContent = `Y: ${(pos.y-CHIP_CY).toFixed(0)} µm`;
-  document.getElementById('d-pitch').textContent= `Pitch: ${pitch.toFixed(1)}°`;
-  document.getElementById('d-zone').textContent = `Zone: ${inQ?'Q-CHIP':'LAUNCHER'}`;
+function updateHUD(){
+  const inQ=pos.x>Q_MIN&&pos.x<Q_MAX&&pos.y>Q_MIN&&pos.y<Q_MAX;
+  document.getElementById('d-alt').textContent =`Alt: ${pos.z.toFixed(1)} µm`;
+  document.getElementById('d-pos').textContent =`X: ${(pos.x-CHIP_CX).toFixed(0)} µm`;
+  document.getElementById('d-posy').textContent=`Y: ${(pos.y-CHIP_CY).toFixed(0)} µm`;
+  document.getElementById('d-hdg').textContent =`Hdg: ${((yaw%360+360)%360).toFixed(0)}°`;
+  document.getElementById('d-zone').textContent=`Zone: ${inQ?'Q-CHIP':'LAUNCHER'}`;
 }
 
-// ═══════════════════════════════════════════════════════
-//  PHYSICS / MOVEMENT
-// ═══════════════════════════════════════════════════════
-let lastT = null;
+// ═══════════════════════════════════
+// FLIGHT PHYSICS
+// ═══════════════════════════════════
+let lastT=null;
 function fly(ts){
-  if(!chipData){ requestAnimationFrame(fly); return; }
-  const dt = lastT ? Math.min((ts-lastT)/1000, 0.05) : 0.016;
-  lastT = ts;
+  const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016;
+  lastT=ts;
+  // Forward vector from yaw+pitch
+  const yR=yaw*Math.PI/180, pR=pitch*Math.PI/180;
+  const dx=-Math.sin(yR)*Math.cos(pR);
+  const dy=-Math.cos(yR)*Math.cos(pR);
+  const dz= Math.sin(pR);
+  let nx=pos.x+dx*speed*dt;
+  let ny=pos.y+dy*speed*dt;
+  let nz=pos.z+dz*speed*dt;
 
-  // Direction from yaw+pitch — fly FORWARD into the view
-  const yR = yaw*Math.PI/180;
-  const pR = pitch*Math.PI/180;
-  const dx = -Math.sin(yR)*Math.cos(pR);
-  const dy = -Math.cos(yR)*Math.cos(pR);
-  const dz = Math.sin(pR);
+  let hit=false;
+  if(nx<C_MIN+P_RAD){nx=C_MIN+P_RAD;hit=true;}
+  if(nx>C_MAX-P_RAD){nx=C_MAX-P_RAD;hit=true;}
+  if(ny<C_MIN+P_RAD){ny=C_MIN+P_RAD;hit=true;}
+  if(ny>C_MAX-P_RAD){ny=C_MAX-P_RAD;hit=true;}
+  if(nz<P_RAD){nz=P_RAD;hit=true;}
+  if(nz>GAP-P_RAD){nz=GAP-P_RAD;hit=true;}
 
-  const vx = dx*speed*dt;
-  const vy = dy*speed*dt;
-  const vz = dz*speed*dt;
-
-  let nx = pos.x + vx;
-  let ny = pos.y + vy;
-  let nz = pos.z + vz;
-
-  // ── Boundary: horizontal confined to C-chip
-  let hitX=false, hitY=false, hitZ=false;
-
-  if(nx < C_MIN+PLAYER_RADIUS){ nx=C_MIN+PLAYER_RADIUS; hitX=true; }
-  if(nx > C_MAX-PLAYER_RADIUS){ nx=C_MAX-PLAYER_RADIUS; hitX=true; }
-  if(ny < C_MIN+PLAYER_RADIUS){ ny=C_MIN+PLAYER_RADIUS; hitY=true; }
-  if(ny > C_MAX-PLAYER_RADIUS){ ny=C_MAX-PLAYER_RADIUS; hitY=true; }
-
-  // ── Vertical: confined between Nb surfaces
-  const maxZ = GAP - PLAYER_RADIUS;
-  const minZ = PLAYER_RADIUS;
-  if(nz < minZ){ nz=minZ; hitZ=true; }
-  if(nz > maxZ){ nz=maxZ; hitZ=true; }
-
-  // ── Collision with indium bumps (cylinder check)
-  const bumps = chipData.bumps;
-  for(let i=0;i<bumps.length;i++){
-    const [bx,by,br] = bumps[i];
-    const dist = Math.sqrt((nx-bx)**2+(ny-by)**2);
-    if(dist < br+PLAYER_RADIUS){
-      // Elastic: push out radially
-      const angle = Math.atan2(ny-by, nx-bx);
-      nx = bx + (br+PLAYER_RADIUS)*Math.cos(angle);
-      ny = by + (br+PLAYER_RADIUS)*Math.sin(angle);
-      hitX=hitY=true;
-      break; // one collision per frame
+  if(chipData){
+    for(const [bx,by,br] of chipData.bumps){
+      const d=Math.sqrt((nx-bx)**2+(ny-by)**2);
+      if(d<br+P_RAD){
+        const a=Math.atan2(ny-by,nx-bx);
+        nx=bx+(br+P_RAD)*Math.cos(a);
+        ny=by+(br+P_RAD)*Math.sin(a);
+        hit=true; break;
+      }
     }
   }
-
-  pos.x=nx; pos.y=ny; pos.z=nz;
-
-  if(hitX||hitY||hitZ) triggerCollision();
-
+  pos.x=nx;pos.y=ny;pos.z=nz;
+  if(hit)doCollision();
   render();
   requestAnimationFrame(fly);
 }
 
-function triggerCollision(){
-  if(inCollision) return;
+function doCollision(){
+  if(inCollision)return;
   inCollision=true;
-  const flash=document.getElementById('collision-flash');
-  flash.style.display='block';
-  if(navigator.vibrate) navigator.vibrate([80]);
-  setTimeout(()=>{ flash.style.display='none'; inCollision=false; }, 180);
+  const f=document.getElementById('collision-flash');
+  f.style.display='block';
+  if(navigator.vibrate)navigator.vibrate([60]);
+  setTimeout(()=>{f.style.display='none';inCollision=false;},160);
 }
 
-// ═══════════════════════════════════════════════════════
-//  INPUT
-// ═══════════════════════════════════════════════════════
-
-// Keyboard (desktop)
-const keys = {};
-window.addEventListener('keydown', e=>keys[e.key]=true);
-window.addEventListener('keyup',   e=>keys[e.key]=false);
-
+// ═══════════════════════════════════
+// INPUT
+// ═══════════════════════════════════
+const keys={};
+window.addEventListener('keydown',e=>keys[e.key]=true);
+window.addEventListener('keyup',  e=>keys[e.key]=false);
 setInterval(()=>{
-  if(keys['ArrowLeft'])  yaw   -= 1.5;
-  if(keys['ArrowRight']) yaw   += 1.5;
-  if(keys['ArrowUp'])    pitch  = Math.min(80, pitch+1);
-  if(keys['ArrowDown'])  pitch  = Math.max(-80, pitch-1);
-  if(keys['a'] || keys['A']) yaw -= 1.5;
-  if(keys['d'] || keys['D']) yaw += 1.5;
-  if(keys['w'] || keys['W']) pitch = Math.min(80, pitch+1);
-  if(keys['s'] || keys['S']) pitch = Math.max(-80, pitch-1);
-}, 16);
+  if(keys['ArrowLeft'] ||keys['a']||keys['A']) yaw-=1.8;
+  if(keys['ArrowRight']||keys['d']||keys['D']) yaw+=1.8;
+  if(keys['ArrowUp']   ||keys['w']||keys['W']) pitch=Math.min(75,pitch+1.2);
+  if(keys['ArrowDown'] ||keys['s']||keys['S']) pitch=Math.max(-75,pitch-1.2);
+},16);
 
-// Touch drag for yaw
-let touchStartX=null;
-window.addEventListener('touchstart', e=>{
-  if(e.target.closest('.btn')||e.target.closest('#speed-display')||e.target.closest('#dashboard')) return;
-  touchStartX=e.touches[0].clientX;
-}, {passive:true});
-window.addEventListener('touchmove', e=>{
-  if(touchStartX===null) return;
-  const dx=e.touches[0].clientX-touchStartX;
-  yaw += dx*0.15;
-  touchStartX=e.touches[0].clientX;
-}, {passive:true});
-window.addEventListener('touchend', ()=>touchStartX=null);
+// Touch swipe for yaw (when gyro off)
+let txStart=null;
+window.addEventListener('touchstart',e=>{
+  if(e.target.closest('.btn')||e.target.closest('#speed-display')||e.target.closest('#dashboard'))return;
+  txStart=e.touches[0].clientX;
+},{passive:true});
+window.addEventListener('touchmove',e=>{
+  if(txStart===null)return;
+  yaw+=(e.touches[0].clientX-txStart)*0.18;
+  txStart=e.touches[0].clientX;
+},{passive:true});
+window.addEventListener('touchend',()=>txStart=null);
 
-// Device orientation (gyro) — AIRPLANE style
-// Phone held landscape: gamma = bank (left/right tilt) → yaw rate
-// beta = forward/back tilt → pitch
-let lastGyroTs = null;
+// ═══════════════════════════════════
+// GYRO — airplane bank model
+// ═══════════════════════════════════
 function toggleGyro(){
   gyroActive=!gyroActive;
-  document.getElementById('btn-gyro').classList.toggle('active', gyroActive);
+  const btn=document.getElementById('btn-gyro');
+  btn.textContent=gyroActive?'🧭 GYRO ON':'🧭 GYRO OFF';
+  btn.classList.toggle('active',gyroActive);
   if(gyroActive){
-    if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-      DeviceOrientationEvent.requestPermission().then(s=>{
-        if(s==='granted') window.addEventListener('deviceorientation', onOrientation);
-      });
-    } else {
-      window.addEventListener('deviceorientation', onOrientation);
-    }
+    const start=()=>window.addEventListener('deviceorientation',onOri);
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')start();});
+    } else { start(); }
   } else {
-    window.removeEventListener('deviceorientation', onOrientation);
+    window.removeEventListener('deviceorientation',onOri);
   }
 }
 
-function onOrientation(e){
-  if(!gyroActive) return;
-  // gamma: phone roll [-90..90] — tilting right = positive = turn right
-  // beta:  phone tilt forward/back [-180..180]
-  const bank  = e.gamma || 0;  // tilt left/right → yaw rate
-  const tilt  = e.beta  || 0;  // forward tilt → pitch
-
-  // Airplane: banking changes yaw continuously (turn rate proportional to bank)
-  // Dead zone ±5 deg
-  const deadZone = 5;
-  if(Math.abs(bank) > deadZone){
-    const rate = (bank - Math.sign(bank)*deadZone) * 0.12; // deg/frame
-    yaw += rate;
+function onOri(e){
+  if(!gyroActive)return;
+  // gamma = left/right tilt of phone [-90..+90]
+  // Tilt RIGHT (+gamma) = bank right = turn RIGHT (yaw increases)
+  // Tilt LEFT  (-gamma) = bank left  = turn LEFT  (yaw decreases)
+  const bank=e.gamma||0;
+  const dead=5;
+  if(Math.abs(bank)>dead){
+    yaw+=(bank>0?1:-1)*(Math.abs(bank)-dead)*0.08;
   }
-  // Pitch: phone held ~90° forward (landscape), center = 90°
-  // tilt forward of 90° → pitch up
-  pitch = Math.max(-70, Math.min(70, -(tilt - 90) * 0.6));
+  // beta = forward tilt. Phone held ~45-60° forward.
+  // Tilt nose forward (beta decreases from 90) = pitch up
+  const tilt=e.beta||0;
+  // neutral ~55°, full up at ~20°, full down at ~90°
+  pitch=Math.max(-70,Math.min(70,(55-tilt)*0.9));
 }
 
-// ═══════════════════════════════════════════════════════
-//  3D MODE
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════
+// FULLSCREEN / 3D
+// ═══════════════════════════════════
+function toggleFS(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+    document.getElementById('btn-fs').textContent='✕ EXIT FULL';
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement)
+    document.getElementById('btn-fs').textContent='⛶ FULLSCREEN';
+});
+
 function toggle3D(){
   mode3D=!mode3D;
   document.getElementById('btn-3d').classList.toggle('active',mode3D);
-  document.getElementById('vr-separator').style.display=mode3D?'block':'none';
+  document.getElementById('vr-sep').style.display=mode3D?'block':'none';
 }
 
-// ═══════════════════════════════════════════════════════
-//  SPEED
-// ═══════════════════════════════════════════════════════
 const SPEEDS=[10,25,50,100,200,500,1000];
-let speedIdx=3;
-function changeSpeed(dir){
-  speedIdx=Math.max(0,Math.min(SPEEDS.length-1,speedIdx+dir));
-  speed=SPEEDS[speedIdx];
+let sIdx=3;
+function changeSpeed(d){
+  sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
+  speed=SPEEDS[sIdx];
   document.getElementById('speed-val').textContent=speed;
 }
 
-// ═══════════════════════════════════════════════════════
-//  LOAD DATA
-// ═══════════════════════════════════════════════════════
-function setProgress(p,msg){
+window.addEventListener('resize',()=>{
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+});
+
+// ═══════════════════════════════════
+// LOAD + INIT
+// ═══════════════════════════════════
+function prog(p,m){
   document.getElementById('progress-fill').style.width=p+'%';
-  document.getElementById('load-status').textContent=msg;
+  document.getElementById('load-status').textContent=m;
 }
 
-async function loadAndInit(){
-  setProgress(5,'Fetching geometry…');
-  const resp = await fetch('chip_data.json');
-  setProgress(30,'Parsing…');
-  chipData = await resp.json();
-  setProgress(55,'Uploading to GPU…');
+async function init(){
+  prog(5,'Fetching geometry…');
+  const r=await fetch('chip_data.json');
+  prog(30,'Parsing JSON…');
+  chipData=await r.json();
+  prog(55,'Uploading layers…');
 
-  gl.getExtension('OES_element_index_uint'); // enable 32-bit indices
-
-  const L130 = uploadFlat(gl, chipData.layer130.verts, chipData.layer130.indices);
-  bufL130verts=L130; bufL130idx=L130.ib; cntL130=L130.count;
-  setProgress(65,'Layer 2…');
-  const L2 = uploadFlat(gl, chipData.layer2.verts, chipData.layer2.indices);
-  bufL2verts=L2;
-  setProgress(75,'Layer 3…');
-  const L3 = uploadFlat(gl, chipData.layer3.verts, chipData.layer3.indices);
-  bufL3verts=L3;
-  setProgress(85,'Building indium bumps…');
-
-  const {vArr,iArr} = buildCylinderBatch(chipData.bumps);
-  bumpVerts=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bumpVerts); gl.bufferData(gl.ARRAY_BUFFER,vArr,gl.STATIC_DRAW);
-  bumpIdx=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,bumpIdx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,iArr,gl.STATIC_DRAW);
-  bumpCount=iArr.length;
-
-  setProgress(92,'Building scene…');
-  buildSiliconFloor();
-  buildQChipBox();
-
-  setProgress(100,'Ready!');
+  bufL130=uploadFlat(chipData.layer130.verts, chipData.layer130.indices);
+  prog(65,'Layer 2…');
+  bufL2  =uploadFlat(chipData.layer2.verts,   chipData.layer2.indices);
+  prog(72,'Layer 3…');
+  bufL3  =uploadFlat(chipData.layer3.verts,   chipData.layer3.indices);
+  prog(80,'Building cylinders…');
+  bufBumps  =buildCylinders(chipData.bumps);
+  prog(92,'Building scene…');
+  bufSiFloor=buildSiFloor();
+  bufQBox   =buildQBox();
+  prog(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
     requestAnimationFrame(fly);
-  },400);
+  },300);
 }
-
-window.addEventListener('resize',()=>{
-  canvas.width=window.innerWidth; canvas.height=window.innerHeight;
-});
-
-loadAndInit().catch(e=>{
+init().catch(e=>{
   document.getElementById('load-status').textContent='Error: '+e.message;
   console.error(e);
 });
