@@ -97,8 +97,8 @@ const SEGS=20;          // cylinder segments
 let chipData=null;
 let mode3D=false, gyroActive=false;
 let speed=100;
-let pos={x:CHIP_CX, y:CHIP_CY, z:GAP/2};
-let yaw=0, pitch=0;
+let pos={x:CHIP_CX, y:C_MIN+600, z:GAP/2}; // start over launcher, south edge
+let yaw=0, pitch=0;  // heading north into chip
 let inCollision=false;
 
 // ═══════════════════════════════════
@@ -112,32 +112,36 @@ gl.getExtension('OES_element_index_uint');
 // ═══════════════════════════════════
 // SHADERS
 // ═══════════════════════════════════
-// Flat layer shader (Nb planes) — simple diffuse, high ambient
+// Flat Nb layer shader: bright base + landing spotlight ahead
 const VS_FLAT=`
 attribute vec2 aXZ;
 uniform mat4 uMVP;
 uniform float uY;
-varying vec2 vXZ;
+varying vec3 vWorld;
 void main(){
-  vXZ=aXZ;
+  vWorld=vec3(aXZ.x,uY,aXZ.y);
   gl_Position=uMVP*vec4(aXZ.x,uY,aXZ.y,1.0);
 }`;
 const FS_FLAT=`
 precision mediump float;
 uniform vec4  uCol;
-uniform vec3  uEye;    // eye world pos
-uniform float uY;
-varying vec2  vXZ;
+uniform vec3  uEye;
+uniform vec3  uFwd;
+varying vec3  vWorld;
 void main(){
-  // Distance-based diffuse: brighter when closer
-  vec3 frag=vec3(vXZ.x,uY,vXZ.y);
-  float d=length(uEye-frag);
-  float bright=clamp(1.0-d/5000.0,0.0,1.0);
-  bright=0.55+bright*0.45;  // 0.55 min ambient, up to 1.0 nearby
-  gl_FragColor=vec4(uCol.rgb*bright, uCol.a);
+  vec3 delta=vWorld-uEye;
+  float dist=length(delta);
+  // Base: always visible, moderately bright
+  float base=0.72;
+  // Landing light: 1000um range, 40-degree cone forward
+  float cosA=dot(normalize(delta),normalize(uFwd));
+  float inCone=smoothstep(0.6,0.9,cosA);
+  float reach=max(0.0,1.0-dist/1000.0);
+  float spot=inCone*reach*1.4;
+  gl_FragColor=vec4(uCol.rgb*clamp(base+spot,0.0,1.8),1.0);
 }`;
 
-// 3D object shader (bumps, boxes, floor) — full Phong
+// 3D shader (bumps, silicon, Q-box): same principle + normals for shape
 const VS_3D=`
 attribute vec3 aPos;
 attribute vec3 aNrm;
@@ -152,20 +156,27 @@ const FS_3D=`
 precision mediump float;
 uniform vec4 uCol;
 uniform vec3 uEye;
+uniform vec3 uFwd;
 varying vec3 vPos;
 varying vec3 vNrm;
 void main(){
   vec3 N=normalize(vNrm);
-  vec3 L=normalize(uEye-vPos);
-  vec3 V=L; // viewer == light
-  vec3 H=normalize(L+V);
-  float d=length(uEye-vPos);
-  float att=clamp(1.0-d/8000.0,0.0,1.0);
-  float diff=max(dot(N,L),0.0);
-  float spec=pow(max(dot(N,H),0.0),48.0)*0.7;
-  float rim=pow(1.0-max(dot(N,V),0.0),2.5)*0.25;
-  float light=0.50+diff*att*1.0+spec*att+rim;
-  gl_FragColor=vec4(uCol.rgb*light,uCol.a);
+  vec3 delta=vPos-uEye;
+  float dist=length(delta);
+  vec3 toEye=normalize(-delta);
+  // Base diffuse from eye-as-omni-light
+  float diff=max(dot(N,toEye),0.0)*0.6;
+  // Specular
+  float spec=pow(max(dot(reflect(normalize(delta),N),toEye),0.0),32.0)*0.5;
+  // Landing spotlight on 3D surfaces too
+  float cosA=dot(normalize(delta),normalize(uFwd));
+  float inCone=smoothstep(0.6,0.9,cosA);
+  float reach=max(0.0,1.0-dist/1000.0);
+  float spot=(inCone*reach)*(diff+spec)*2.0;
+  // Rim
+  float rim=pow(1.0-max(dot(N,toEye),0.0),3.0)*0.15;
+  float light=0.55+diff+spot+rim+spec*0.3;
+  gl_FragColor=vec4(uCol.rgb*clamp(light,0.0,2.0),1.0);
 }`;
 
 function mkSh(type,src){
@@ -259,14 +270,16 @@ function upload3D(verts,idxs){// verts: x,y,z,nx,ny,nz interleaved
 // DRAW FLAT LAYER (Nb planes)
 // ═══════════════════════════════════
 let gEyeX=0,gEyeY=0,gEyeZ=0;
+let gFwdX=0,gFwdY=0,gFwdZ=1; // forward unit vector in world space
 
 function uLoc(p,n){return gl.getUniformLocation(p,n);}
 function drawFlat(buf,yH,col){
   gl.useProgram(progFlat);
   gl.uniformMatrix4fv(uLoc(progFlat,'uMVP'),false,mMVP);
   gl.uniform4fv(uLoc(progFlat,'uCol'),col);
-  gl.uniform1f(uLoc(progFlat,'uY'),yH);
+  gl.uniform1f(uLoc(progFlat,'uY'),yH);   // still used in VS
   gl.uniform3f(uLoc(progFlat,'uEye'),gEyeX,gEyeY,gEyeZ);
+  gl.uniform3f(uLoc(progFlat,'uFwd'),gFwdX,gFwdY,gFwdZ);
   const aXZ=gl.getAttribLocation(progFlat,'aXZ');
   gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
   gl.enableVertexAttribArray(aXZ);
@@ -283,6 +296,7 @@ function draw3D(buf,col){
   gl.uniformMatrix4fv(uLoc(prog3D,'uMVP'),false,mMVP);
   gl.uniform4fv(uLoc(prog3D,'uCol'),col);
   gl.uniform3f(uLoc(prog3D,'uEye'),gEyeX,gEyeY,gEyeZ);
+  gl.uniform3f(uLoc(prog3D,'uFwd'),gFwdX,gFwdY,gFwdZ);
   const aPos=gl.getAttribLocation(prog3D,'aPos');
   const aNrm=gl.getAttribLocation(prog3D,'aNrm');
   gl.bindBuffer(gl.ARRAY_BUFFER,buf.vb);
@@ -373,7 +387,12 @@ function renderEye(ex,ey,ez,yDeg,pDeg,vpX,vpW,vpH){
   buildMVP(ex,ey,ez,yDeg,pDeg,70,vpW/vpH);
   gEyeX=ex; gEyeY=ey; gEyeZ=ez;
 
-  // Draw order: far to near roughly
+  // Forward vector in world space (WebGL: X=chipX, Y=alt, Z=chipY)
+  const yR=yDeg*Math.PI/180, pR=pDeg*Math.PI/180;
+  gFwdX=-Math.sin(yR)*Math.cos(pR);
+  gFwdY= Math.sin(pR);
+  gFwdZ=-Math.cos(yR)*Math.cos(pR);
+
   draw3D(bufSiFloor, C_SI);
   if(bufL130) drawFlat(bufL130, 0,   C_NB_BOT);
   if(bufL2)   drawFlat(bufL2,   GAP, C_NB_TOP);
@@ -530,19 +549,27 @@ function toggleGyro(){
 
 function onOri(e){
   if(!gyroActive)return;
-  // gamma = left/right tilt of phone [-90..+90]
-  // Tilt RIGHT (+gamma) = bank right = turn RIGHT (yaw increases)
-  // Tilt LEFT  (-gamma) = bank left  = turn LEFT  (yaw decreases)
-  const bank=e.gamma||0;
-  const dead=5;
-  if(Math.abs(bank)>dead){
-    yaw+=(bank>0?1:-1)*(Math.abs(bank)-dead)*0.08;
+  // Phone held in LANDSCAPE (rotated 90° left, screen facing you).
+  // In this orientation:
+  //   beta  = left/right tilt of the top edge → bank → yaw turn rate
+  //   gamma = forward/back tilt of the phone   → pitch
+  // beta range: ~0° (flat) to ±180°. In landscape ~90° is upright.
+  // gamma range: -90° to +90°. Tilting top toward you = positive.
+
+  const rawBank  = e.beta  || 0;  // left/right bank
+  const rawPitch = e.gamma || 0;  // forward/back
+
+  // Bank: neutralize at ~90° (phone held upright in landscape)
+  // Tilt top-right (+) → turn right.  Tilt top-left (-) → turn left.
+  const bank = rawBank - 90;   // now ~0 when level
+  const dead = 6;
+  if(Math.abs(bank) > dead){
+    yaw += Math.sign(bank) * (Math.abs(bank)-dead) * 0.025; // very gentle
   }
-  // beta = forward tilt. Phone held ~45-60° forward.
-  // Tilt nose forward (beta decreases from 90) = pitch up
-  const tilt=e.beta||0;
-  // neutral ~55°, full up at ~20°, full down at ~90°
-  pitch=Math.max(-70,Math.min(70,(55-tilt)*0.9));
+
+  // Pitch: gamma=0 = phone flat, gamma=-45 = tilted forward comfortably
+  // Neutral at -30°, tilt more forward = pitch up
+  pitch = Math.max(-60, Math.min(60, (-rawPitch - 30) * 0.6));
 }
 
 // ═══════════════════════════════════
