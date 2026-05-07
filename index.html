@@ -75,7 +75,7 @@ canvas{display:block;}
     <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
   </div>
   <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
-  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v13</div>
+  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v14</div>
 </div>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────
@@ -498,10 +498,12 @@ function toggleGyro(){
 
 function onOri(e){
   if(!gyroOn) return;
-  const a=e.alpha??0, b=e.beta??90, g=e.gamma??0;
+  const b=e.beta??90, g=e.gamma??0;
 
-  dbg.textContent=`α:${a.toFixed(0)} β:${b.toFixed(0)} γ:${g.toFixed(0)}`;
+  // Always show raw values for debugging
+  document.getElementById('dbg').textContent=`β:${b.toFixed(1)}  γ:${g.toFixed(1)}\nrelβ:${(b-calBeta).toFixed(1)}  relγ:${(g-calGamma).toFixed(1)}`;
 
+  // First reading = calibration: whatever you hold now is neutral
   if(!gyroCalibrated){
     calBeta=b; calGamma=g;
     fBeta=b; fGamma=g;
@@ -509,19 +511,25 @@ function onOri(e){
     return;
   }
 
+  // Smooth
   fBeta  += SMOOTH*(b - fBeta);
   fGamma += SMOOTH*(g - fGamma);
 
-  // YAW: beta changes as you rotate phone left/right
-  // Rotate right → beta decreases from ~90 → yaw increases (turn right)
-  // Multiply by -2 so ±45° phone rotation = ±90° view turn
-  const relBeta = fBeta - calBeta;
-  yaw = START_YAW + (-relBeta * 2.0);
+  const relBeta  = fBeta  - calBeta;   // tilt around width axis → rudder/yaw
+  const relGamma = fGamma - calGamma;  // tilt around length axis → pitch
 
-  // PITCH: gamma changes as you tilt nose up/down
-  // Tilt nose down → gamma increases → pitch down (negative)
-  const relGamma = fGamma - calGamma;
-  pitch = Math.max(-70, Math.min(70, -relGamma * 1.5));
+  // YAW (rudder): rate-based. Dead zone ±4°.
+  // Tilt top of phone toward you (beta increases) → turn right
+  // Tilt top away (beta decreases) → turn left
+  const deadY=4;
+  if(Math.abs(relBeta)>deadY){
+    const rate=Math.sign(relBeta)*Math.min(Math.abs(relBeta)-deadY,30)/30;
+    yaw += rate * 1.2; // max ~1.2°/event = ~72°/sec at 60hz — fast enough, not too snappy
+  }
+
+  // PITCH (look up/down only — no altitude change):
+  // Tilt nose down (gamma increases in landscape) → look down
+  pitch = Math.max(-70, Math.min(70, -relGamma * 1.8));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
