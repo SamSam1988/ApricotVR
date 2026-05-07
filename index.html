@@ -60,22 +60,20 @@ canvas{display:block;}
 <div id="ui">
   <div id="dashboard">
     <h3>◈ COCKPIT</h3>
-    <canvas id="hc" width="76" height="76"></canvas>
-    <div class="dval" id="dalt">Alt: 40 µm</div>
-    <div class="dval" id="dpos">X: 0 Y: 0 µm</div>
-    <div class="dval" id="dhdg">Hdg: 0°</div>
-    <div class="dval" id="dzone">LAUNCHER</div>
+    <canvas id="speedo" width="80" height="80"></canvas>
+    <div class="dval" id="dpos">X:0 Y:0 µm</div>
+    <div class="dval" id="dhdg">Hdg: 180°</div>
+    <div class="dval" id="dzone">◆ LAUNCHER</div>
   </div>
   <div id="controls">
     <div class="btn" onclick="resetPos()">↺ RESET</div>
-    <div class="btn" id="bfs"   onclick="toggleFS()">⛶ FULLSCREEN</div>
-    <div class="btn" id="b3d"   onclick="toggle3D()">👓 3D MODE</div>
+    <div class="btn" id="bfs"   onclick="toggleFS()">⛶ FULL</div>
+    <div class="btn" id="b3d"   onclick="toggle3D()">👓 3D</div>
     <div class="btn" id="bgy"   onclick="toggleGyro()">✈ GYRO</div>
-    <div class="btn" onclick="chSpd(-1)">◂ SLOWER</div>
-    <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
+    <div class="btn" onclick="chSpd(-1)">◂ SLOW</div>
+    <div class="btn" onclick="chSpd(1)">FAST ▸</div>
   </div>
-  <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
-  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v15</div>
+  <div style="position:absolute;top:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:9px;font-family:monospace;padding:2px 6px;border-radius:3px;pointer-events:none;">v16</div>
 </div>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────
@@ -361,37 +359,51 @@ function render(){
   } else {
     renderEye(ex, ey, ez, yaw, pc, 0, W, H);
   }
-  drawHorizon(pc);
+  drawSpeedo();
   updateHUD();
 }
 
-// ── HORIZON ───────────────────────────────────────────
-const hc=document.getElementById('hc'),hx=hc.getContext('2d');
-function drawHorizon(pd){
-  const w=76,h=76,cx=38,cy=38,r=34;
-  hx.clearRect(0,0,w,h);
-  hx.save();
-  hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.clip();
-  const off=(pd/90)*r;
-  hx.fillStyle='#000208';hx.fillRect(0,0,w,h);        // sky: deep space
-  hx.fillStyle='#020a02';hx.fillRect(0,cy+off,w,h);   // ground: dark green
-  hx.strokeStyle='#0f8';hx.lineWidth=1.5;
-  hx.beginPath();hx.moveTo(0,cy+off);hx.lineTo(w,cy+off);hx.stroke();
-  // plane symbol
-  hx.strokeStyle='#fff';hx.lineWidth=1.5;
-  hx.beginPath();hx.moveTo(cx-13,cy);hx.lineTo(cx-4,cy);hx.stroke();
-  hx.beginPath();hx.moveTo(cx+4,cy);hx.lineTo(cx+13,cy);hx.stroke();
-  hx.beginPath();hx.arc(cx,cy,2,0,Math.PI*2);hx.fillStyle='#fff';hx.fill();
-  hx.restore();
-  hx.strokeStyle='#0a4';hx.lineWidth=1;
-  hx.beginPath();hx.arc(cx,cy,r,0,Math.PI*2);hx.stroke();
+// ── SPEEDOMETER (car-clock style) ─────────────────────
+const speedo=document.getElementById('speedo'), sx=speedo.getContext('2d');
+function drawSpeedo(){
+  const w=80,h=80,cx=40,cy=40,r=36;
+  sx.clearRect(0,0,w,h);
+  // background
+  sx.beginPath();sx.arc(cx,cy,r,0,Math.PI*2);
+  sx.fillStyle='#000a04';sx.fill();
+  sx.strokeStyle='#0a4';sx.lineWidth=1.5;sx.stroke();
+  // tick marks
+  const minSpd=SPEEDS[0], maxSpd=SPEEDS[SPEEDS.length-1];
+  const startA=Math.PI*0.75, endA=Math.PI*2.25;
+  for(let i=0;i<SPEEDS.length;i++){
+    const t=i/(SPEEDS.length-1);
+    const a=startA+t*(endA-startA);
+    const inner=i%2===0?r-10:r-6;
+    sx.beginPath();
+    sx.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner);
+    sx.lineTo(cx+Math.cos(a)*(r-2),cy+Math.sin(a)*(r-2));
+    sx.strokeStyle=i%2===0?'#0f8':'#0a4';sx.lineWidth=i%2===0?1.5:1;sx.stroke();
+  }
+  // needle
+  const t=(sIdx)/(SPEEDS.length-1);
+  const a=startA+t*(endA-startA);
+  sx.beginPath();
+  sx.moveTo(cx-Math.cos(a)*6,cy-Math.sin(a)*6);
+  sx.lineTo(cx+Math.cos(a)*(r-12),cy+Math.sin(a)*(r-12));
+  sx.strokeStyle='#ff6';sx.lineWidth=2;sx.stroke();
+  // center dot
+  sx.beginPath();sx.arc(cx,cy,4,0,Math.PI*2);
+  sx.fillStyle='#0f8';sx.fill();
+  // speed text
+  sx.fillStyle='#0f8';sx.font='bold 11px monospace';sx.textAlign='center';
+  sx.fillText(spd+'µm/s',cx,cy+18);
 }
 function updateHUD(){
   const inQ=pos.x>QMIN&&pos.x<QMAX&&pos.y>QMIN&&pos.y<QMAX;
-  document.getElementById('dalt').textContent=`Alt: ${pos.z.toFixed(1)} µm`;
-  document.getElementById('dpos').textContent=`X:${(pos.x-CCX).toFixed(0)} Y:${(pos.y-CCY).toFixed(0)} µm`;
-  document.getElementById('dhdg').textContent=`Hdg: ${((yaw%360+360)%360).toFixed(0)}°`;
+  document.getElementById('dpos').textContent=`X:${(pos.x-CCX).toFixed(0)} Y:${(pos.y-CCY).toFixed(0)}`;
+  document.getElementById('dhdg').textContent=`Hdg:${((yaw%360+360)%360).toFixed(0)}°`;
   document.getElementById('dzone').textContent=inQ?'▲ Q-CHIP':'◆ LAUNCHER';
+  drawSpeedo();
 }
 
 // ── PHYSICS ───────────────────────────────────────────
@@ -465,22 +477,21 @@ window.addEventListener('touchmove',e=>{
 window.addEventListener('touchend',()=>{tx0=null;ty0=null;});
 
 // ── GYRO ──────────────────────────────────────────────
-let gyroCalibrated=false;
-let calBeta=90, calGamma=0;
-let fBeta=90, fGamma=0;
+let gyroCalibrated=false, calBeta=90, calGamma=0, fBeta=90, fGamma=0;
 const SMOOTH=0.12;
+let oriCount=0;
 
-// Show raw values ALWAYS (no button needed) for debugging
+// Always count and show events — even before GYRO pressed
 window.addEventListener('deviceorientation', e=>{
+  oriCount++;
   if(!gyroOn)
     document.getElementById('gdbg').textContent=
-      `α:${(e.alpha??0).toFixed(0)} β:${(e.beta??0).toFixed(0)} γ:${(e.gamma??0).toFixed(0)}\n(press GYRO to activate)`;
+      `#${oriCount} β:${(e.beta??'?')} γ:${(e.gamma??'?')}\nPress GYRO ↑`;
 },{passive:true});
 
 function toggleGyro(){
   if(typeof DeviceOrientationEvent!=='undefined' &&
      typeof DeviceOrientationEvent.requestPermission==='function'){
-    // iOS — must request permission on user gesture
     DeviceOrientationEvent.requestPermission().then(s=>{
       if(s==='granted'){
         gyroOn=true; gyroCalibrated=false;
@@ -488,11 +499,10 @@ function toggleGyro(){
         document.getElementById('bgy').classList.add('on');
         document.getElementById('bgy').textContent='✈ GYRO ON';
       } else {
-        document.getElementById('gdbg').textContent='Permission denied';
+        document.getElementById('gdbg').textContent='Permission denied!';
       }
     }).catch(e=>document.getElementById('gdbg').textContent='Err:'+e);
   } else {
-    // Android
     gyroOn=!gyroOn; gyroCalibrated=false;
     if(gyroOn) window.addEventListener('deviceorientation',onOri,{passive:true});
     else { window.removeEventListener('deviceorientation',onOri); pitch=0; }
@@ -504,19 +514,14 @@ function toggleGyro(){
 function onOri(e){
   if(!gyroOn) return;
   const b=e.beta??90, g=e.gamma??0;
-  if(!gyroCalibrated){
-    calBeta=b; calGamma=g; fBeta=b; fGamma=g;
-    gyroCalibrated=true; return;
-  }
+  if(!gyroCalibrated){ calBeta=b; calGamma=g; fBeta=b; fGamma=g; gyroCalibrated=true; return; }
   fBeta  += SMOOTH*(b-fBeta);
   fGamma += SMOOTH*(g-fGamma);
   const rb=fBeta-calBeta, rg=fGamma-calGamma;
   document.getElementById('gdbg').textContent=
-    `β:${fBeta.toFixed(0)} Δβ:${rb.toFixed(0)}\nγ:${fGamma.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}°`;
-  // YAW: beta (axis across phone width) — rate based
+    `Δβ:${rb.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}°`;
   const dead=3;
   if(Math.abs(rb)>dead) yaw+=Math.sign(rb)*Math.min((Math.abs(rb)-dead)*0.07,1.2);
-  // PITCH: gamma (axis along phone length) — look up/down
   pitch=Math.max(-70,Math.min(70,-rg*1.5));
 }
 
