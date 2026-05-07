@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v20</div>
+  <div id="ver">v21</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -91,7 +91,7 @@ canvas{display:block;}
     <div class="dval" id="dpos">0 , 0</div>
     <div class="dval" id="dhdg">HDG 180°</div>
     <div class="dval" id="dspd">100 µm/s</div>
-    <div class="dval" id="dzone">◆ LAUNCHER</div>
+    <canvas id="minimap" width="72" height="72" style="border:1px solid #0a4;border-radius:3px;margin-top:2px;"></canvas>
   </div>
   <div id="controls">
     <div class="btn" onclick="resetPos()">↺ RESET</div>
@@ -397,47 +397,37 @@ function render(){
   updateHUD();
 }
 
-// ── SPEEDOMETER (car-clock style) ─────────────────────
-const speedo=document.getElementById('speedo'), sx=speedo.getContext('2d');
-function drawSpeedo(){
-  const w=80,h=80,cx=40,cy=40,r=36;
-  sx.clearRect(0,0,w,h);
-  // background
-  sx.beginPath();sx.arc(cx,cy,r,0,Math.PI*2);
-  sx.fillStyle='#000a04';sx.fill();
-  sx.strokeStyle='#0a4';sx.lineWidth=1.5;sx.stroke();
-  // tick marks
-  const minSpd=SPEEDS[0], maxSpd=SPEEDS[SPEEDS.length-1];
-  const startA=Math.PI*0.75, endA=Math.PI*2.25;
-  for(let i=0;i<SPEEDS.length;i++){
-    const t=i/(SPEEDS.length-1);
-    const a=startA+t*(endA-startA);
-    const inner=i%2===0?r-10:r-6;
-    sx.beginPath();
-    sx.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner);
-    sx.lineTo(cx+Math.cos(a)*(r-2),cy+Math.sin(a)*(r-2));
-    sx.strokeStyle=i%2===0?'#0f8':'#0a4';sx.lineWidth=i%2===0?1.5:1;sx.stroke();
-  }
-  // needle
-  const t=(sIdx)/(SPEEDS.length-1);
-  const a=startA+t*(endA-startA);
-  sx.beginPath();
-  sx.moveTo(cx-Math.cos(a)*6,cy-Math.sin(a)*6);
-  sx.lineTo(cx+Math.cos(a)*(r-12),cy+Math.sin(a)*(r-12));
-  sx.strokeStyle='#ff6';sx.lineWidth=2;sx.stroke();
-  // center dot
-  sx.beginPath();sx.arc(cx,cy,4,0,Math.PI*2);
-  sx.fillStyle='#0f8';sx.fill();
-  // speed text
-  sx.fillStyle='#0f8';sx.font='bold 11px monospace';sx.textAlign='center';
-  sx.fillText(spd+'µm/s',cx,cy+18);
+// ── MINIMAP ───────────────────────────────────────────
+const mm=document.getElementById('minimap'), mx=mm.getContext('2d');
+function drawMinimap(){
+  const W=72,H=72,M=3;
+  mx.clearRect(0,0,W,H);
+  mx.fillStyle='#000a04'; mx.fillRect(0,0,W,H);
+  function mapX(wx){return M+(wx-CMIN)/(CMAX-CMIN)*(W-2*M);}
+  function mapY(wy){return M+(wy-CMIN)/(CMAX-CMIN)*(H-2*M);}
+  // C-chip outline
+  mx.strokeStyle='#0a4'; mx.lineWidth=1;
+  mx.strokeRect(M,M,W-2*M,H-2*M);
+  // Q-chip
+  mx.fillStyle='rgba(0,80,40,0.35)';
+  mx.fillRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
+  mx.strokeStyle='#0f8'; mx.lineWidth=0.8;
+  mx.strokeRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
+  // Direction arrow + dot
+  const px=mapX(pos.x), py=mapY(pos.y);
+  const yr=yaw*Math.PI/180;
+  mx.strokeStyle='#ff0'; mx.lineWidth=1.5;
+  mx.beginPath(); mx.moveTo(px,py);
+  mx.lineTo(px-Math.sin(yr)*6, py-Math.cos(yr)*6);
+  mx.stroke();
+  mx.beginPath(); mx.arc(px,py,2.5,0,Math.PI*2);
+  mx.fillStyle='#ff0'; mx.fill();
 }
 function updateHUD(){
-  const inQ=pos.x>QMIN&&pos.x<QMAX&&pos.y>QMIN&&pos.y<QMAX;
   document.getElementById('dpos').textContent=`${(pos.x-CCX).toFixed(0)}, ${(pos.y-CCY).toFixed(0)} µm`;
   document.getElementById('dhdg').textContent=`HDG ${((yaw%360+360)%360).toFixed(0)}°`;
   document.getElementById('dspd').textContent=`${spd} µm/s`;
-  document.getElementById('dzone').textContent=inQ?'▲ Q-CHIP':'◆ LAUNCHER';
+  drawMinimap();
 }
 
 // ── PHYSICS ───────────────────────────────────────────
@@ -573,8 +563,10 @@ function onOri(e){
   if(Math.abs(rAlpha)>dead)
     yaw += Math.sign(rAlpha) * Math.min((Math.abs(rAlpha)-dead)*0.04, 0.8);
 
-  // PITCH: gamma = X-axis. Tilt nose down (gamma increases) → look down
-  pitch = Math.max(-45, Math.min(45, -rGamma*1.2));
+  // PITCH: gamma = X-axis. Tilt nose down → look down. Phone up = look up.
+  // rGamma positive = tilted forward/down → negative pitch (look down)
+  // rGamma negative = tilted back/up → positive pitch (look up)
+  pitch = Math.max(-35, Math.min(35, rGamma*1.2));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
