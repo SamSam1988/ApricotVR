@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v23</div>
+  <div id="ver">v24</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -499,7 +499,7 @@ function drawParticles(){
   }
   if(!verts.length) return;
   gl.useProgram(PP);
-  gl.uniformMatrix4fv(gl.getUniformLocation(PP,'uM'),false,mMVP);
+  gl.uniformMatrix4fv(gl.getUniformLocation(PP,'uM'),false,MVP);
   gl.bindBuffer(gl.ARRAY_BUFFER,pBuf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(verts),gl.DYNAMIC_DRAW);
   const aPos=gl.getAttribLocation(PP,'aPos');
@@ -571,34 +571,37 @@ function updateHUD(){
 const PRAD=4;
 let lastT=null;
 function fly(ts){
-  const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
-  if(!frozen && !paused){
-    const yr=yaw*Math.PI/180;
-    // Move only horizontally — no vertical movement from pitch
-    let nx=pos.x+(-Math.sin(yr))*spd*dt;
-    let ny=pos.y+(-Math.cos(yr))*spd*dt;
-    let nz=GAP*0.5; // always locked to midpoint
-    let hit=false;
-    if(nx<CMIN+PRAD){nx=CMIN+PRAD+30;hit=true;}
-    if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
-    if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
-    if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
-    if(data){
-      for(const [bx,by] of data.bumps){
-        const d=Math.hypot(nx-bx,ny-by);
-        if(d<BRAD+PRAD){
-          const a=Math.atan2(ny-by,nx-bx);
-          nx=bx+(BRAD+PRAD+30)*Math.cos(a);
-          ny=by+(BRAD+PRAD+30)*Math.sin(a);
-          hit=true;break;
+  try{
+    const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
+    if(!paused){
+      const yr=yaw*Math.PI/180;
+      let nx=pos.x+(-Math.sin(yr))*spd*dt;
+      let ny=pos.y+(-Math.cos(yr))*spd*dt;
+      let nz=GAP*0.5;
+      let hit=false;
+      if(nx<CMIN+PRAD){nx=CMIN+PRAD+30;hit=true;}
+      if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
+      if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
+      if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
+      if(data){
+        for(const [bx,by] of data.bumps){
+          const d=Math.hypot(nx-bx,ny-by);
+          if(d<BRAD+PRAD){
+            const a=Math.atan2(ny-by,nx-bx);
+            nx=bx+(BRAD+PRAD+30)*Math.cos(a);
+            ny=by+(BRAD+PRAD+30)*Math.sin(a);
+            hit=true;break;
+          }
         }
       }
+      pos.x=nx;pos.y=ny;pos.z=nz;
+      if(hit)doHit();
+      updateParticles(dt*1000);
     }
-    pos.x=nx;pos.y=ny;pos.z=nz;
-    if(hit)doHit();
+    render();
+  }catch(e){
+    console.error('fly error:',e);
   }
-  if(!paused) updateParticles(dt*1000);
-  render();
   requestAnimationFrame(fly);
 }
 function doHit(){
@@ -717,9 +720,8 @@ function togglePause(){
   btn.classList.toggle('on',paused);
 }
 function resetPos(){
-  pos={...START};yaw=START_YAW;pitch=0;
-  frozen=true; gyroCalibrated=false;
-  setTimeout(()=>frozen=false, 1500);
+  pos={x:START.x,y:START.y};yaw=START_YAW;pitch=0;
+  gyroCalibrated=false;
 }
 function toggleFS(){
   if(!document.fullscreenElement){
@@ -774,12 +776,11 @@ async function init(){
   bSiCeil =mkSiCeil();
   bQBox   =mkQBox();
   initParticles();
-  lp(100,'Ready — hold phone level…');
+  lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
-    setTimeout(()=>{ frozen=false; },1500);
     requestAnimationFrame(fly);
-  },250);
+  },200);
 }
 init().catch(e=>{document.getElementById('lstatus').textContent='Error: '+e.message;console.error(e);});
 </script>
