@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v18</div>
+  <div id="ver">v19</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -551,27 +551,28 @@ function toggleGyro(){
 
 function onOri(e){
   if(!gyroOn) return;
-  const b=e.beta??90, g=e.gamma??0;
+  const b=e.beta??0, g=e.gamma??0;
   if(!gyroCalibrated){
     calBeta=b; calGamma=g; fBeta=b; fGamma=g;
     gyroCalibrated=true; return;
   }
   fBeta  += SMOOTH*(b-fBeta);
   fGamma += SMOOTH*(g-fGamma);
-  const rb=fBeta-calBeta;
-  const rg=fGamma-calGamma;
+  const rb=fBeta-calBeta;   // nod up/down → pitch
+  const rg=fGamma-calGamma; // head shake left/right → yaw
 
   document.getElementById('gdbg').textContent=
-    `Δβ:${rb.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}° p:${pitch.toFixed(0)}°`;
+    `Δβ(pitch):${rb.toFixed(0)} Δγ(yaw):${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}° p:${pitch.toFixed(0)}°`;
 
-  // In landscape: gamma is the vertical-axis rotation (floor-to-ceiling) = YAW
-  // Beta is the horizontal-axis tilt (left-to-right) = PITCH VIEW
+  // YAW: gamma = rotation around Y axis = head shake left/right
+  // gamma increases when tilting right → turn RIGHT (positive yaw)
   const dead=4;
   if(Math.abs(rg)>dead)
     yaw += Math.sign(rg) * Math.min((Math.abs(rg)-dead)*0.04, 0.8);
 
-  // PITCH: raise phone = look up (positive pitch), lower = look down
-  // rb positive = phone tilted forward = should look down = negative pitch
+  // PITCH: beta = rotation around X axis = nod up/down
+  // beta increases when tilting forward (nose down) → look DOWN (negative pitch)
+  // So negate: raise phone (beta decreases) → look UP
   pitch = Math.max(-45, Math.min(45, -rb*1.2));
 }
 
