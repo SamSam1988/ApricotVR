@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v17</div>
+  <div id="ver">v18</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -87,9 +87,10 @@ canvas{display:block;}
         <path class="st2" d="M145.1,104.5s6,4.2,9.1,9.1c3,4.8-12.4-4.3-19.9,0-3.3,1.9-3,1.8-3,1.8,0,0-5.4,4.2-7.2-6.6-1.8-10.9-22.3-27.2-22.3-27.2,0,0-8.4,27.2.6,36.8,9.1,9.6,11.5,15.2,11.5,15.2l.4.6c.3,1.3-.7,2.2-.7,2.2-2.4,2.7-8.4,1.3-8.4,1.3h0c-2.8-.4-6.8-1.4-10.9-4.1,0,0-.2.2-.6.5v.2c-27.8,27.1-23.7,78.4-21.6,94.1-.6-.4-12.7-7.8-20.4-30.1-.5-57.4,20.9-73.3,29.6-77.5-.3-4.4-2.5-37.4,4.3-52,0,0-15.1-35-27.2-44,0,0-6.6-13.9,2.4-11.5,9.1,2.4,68.2,64,84.5,91.1Z"/>
       </g>
     </svg>
-    <canvas id="speedo" width="72" height="72"></canvas>
+    <canvas id="speedo" width="1" height="1" style="display:none"></canvas>
     <div class="dval" id="dpos">0 , 0</div>
     <div class="dval" id="dhdg">HDG 180°</div>
+    <div class="dval" id="dspd">100 µm/s</div>
     <div class="dval" id="dzone">◆ LAUNCHER</div>
   </div>
   <div id="controls">
@@ -392,7 +393,6 @@ function render(){
   } else {
     renderEye(ex, ey, ez, yaw, pc, 0, W, H);
   }
-  drawSpeedo();
   updateHUD();
 }
 
@@ -433,10 +433,10 @@ function drawSpeedo(){
 }
 function updateHUD(){
   const inQ=pos.x>QMIN&&pos.x<QMAX&&pos.y>QMIN&&pos.y<QMAX;
-  document.getElementById('dpos').textContent=`X:${(pos.x-CCX).toFixed(0)} Y:${(pos.y-CCY).toFixed(0)}`;
-  document.getElementById('dhdg').textContent=`Hdg:${((yaw%360+360)%360).toFixed(0)}°`;
+  document.getElementById('dpos').textContent=`${(pos.x-CCX).toFixed(0)}, ${(pos.y-CCY).toFixed(0)} µm`;
+  document.getElementById('dhdg').textContent=`HDG ${((yaw%360+360)%360).toFixed(0)}°`;
+  document.getElementById('dspd').textContent=`${spd} µm/s`;
   document.getElementById('dzone').textContent=inQ?'▲ Q-CHIP':'◆ LAUNCHER';
-  drawSpeedo();
 }
 
 // ── PHYSICS ───────────────────────────────────────────
@@ -558,20 +558,21 @@ function onOri(e){
   }
   fBeta  += SMOOTH*(b-fBeta);
   fGamma += SMOOTH*(g-fGamma);
-  const rb=fBeta-calBeta;   // rotation around vertical axis → yaw
-  const rg=fGamma-calGamma; // rotation around horizontal axis → pitch view
+  const rb=fBeta-calBeta;
+  const rg=fGamma-calGamma;
 
   document.getElementById('gdbg').textContent=
-    `Δβ:${rb.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}°`;
+    `Δβ:${rb.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}° p:${pitch.toFixed(0)}°`;
 
-  // YAW: rate-based, dead zone ±4°, gentle rate
-  // Tilt top of phone toward you (beta increases) → turn right
+  // In landscape: gamma is the vertical-axis rotation (floor-to-ceiling) = YAW
+  // Beta is the horizontal-axis tilt (left-to-right) = PITCH VIEW
   const dead=4;
-  if(Math.abs(rb)>dead)
-    yaw += Math.sign(rb) * Math.min((Math.abs(rb)-dead)*0.04, 0.8);
+  if(Math.abs(rg)>dead)
+    yaw += Math.sign(rg) * Math.min((Math.abs(rg)-dead)*0.04, 0.8);
 
-  // PITCH: direct map, hard-clamped to ±45°, view only
-  pitch = Math.max(-45, Math.min(45, -rg*1.2));
+  // PITCH: raise phone = look up (positive pitch), lower = look down
+  // rb positive = phone tilted forward = should look down = negative pitch
+  pitch = Math.max(-45, Math.min(45, -rb*1.2));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
@@ -596,7 +597,8 @@ function toggle3D(){
 }
 function chSpd(d){
   sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
-  spd=SPEEDS[sIdx];document.getElementById('sv').textContent=spd;
+  spd=SPEEDS[sIdx];
+  document.getElementById('dspd').textContent=`${spd} µm/s`;
 }
 window.addEventListener('resize',()=>{cv.width=window.innerWidth;cv.height=window.innerHeight;});
 
