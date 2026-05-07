@@ -464,71 +464,60 @@ window.addEventListener('touchmove',e=>{
 },{passive:true});
 window.addEventListener('touchend',()=>{tx0=null;ty0=null;});
 
-// ── GYRO — LANDSCAPE LEFT ─────────────────────────────
-// Phone held landscape-left (home button on right):
-// ROTATE phone left/right around vertical axis → BETA changes
-//   level forward = ~90°, rotate left → beta increases, rotate right → beta decreases
-// TILT phone nose up/down → GAMMA changes  
-//   level = ~0°, tilt nose up → gamma goes negative, nose down → positive
-//
-// We use DIRECT yaw mapping (not rate): turn phone = turn view
-// This means yaw IS the phone orientation — intuitive like VR headset
-
+// ── GYRO ──────────────────────────────────────────────
 let gyroCalibrated=false;
-let calBeta=0, calGamma=0;
-let fBeta=0, fGamma=0;
-const SMOOTH=0.08;
-const dbg=document.getElementById('gdbg');
+let calBeta=90, calGamma=0;
+let fBeta=90, fGamma=0;
+const SMOOTH=0.12;
+
+// Show raw values ALWAYS (no button needed) for debugging
+window.addEventListener('deviceorientation', e=>{
+  if(!gyroOn)
+    document.getElementById('gdbg').textContent=
+      `α:${(e.alpha??0).toFixed(0)} β:${(e.beta??0).toFixed(0)} γ:${(e.gamma??0).toFixed(0)}\n(press GYRO to activate)`;
+},{passive:true});
 
 function toggleGyro(){
-  gyroOn=!gyroOn;
-  if(gyroOn) gyroCalibrated=false;
-  document.getElementById('bgy').classList.toggle('on',gyroOn);
-  document.getElementById('bgy').textContent=gyroOn?'✈ GYRO ON':'✈ GYRO';
-  if(gyroOn){
-    const go=()=>window.addEventListener('deviceorientation',onOri,{passive:true});
-    if(typeof DeviceOrientationEvent?.requestPermission==='function')
-      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')go();});
-    else go();
+  if(typeof DeviceOrientationEvent!=='undefined' &&
+     typeof DeviceOrientationEvent.requestPermission==='function'){
+    // iOS — must request permission on user gesture
+    DeviceOrientationEvent.requestPermission().then(s=>{
+      if(s==='granted'){
+        gyroOn=true; gyroCalibrated=false;
+        window.addEventListener('deviceorientation',onOri,{passive:true});
+        document.getElementById('bgy').classList.add('on');
+        document.getElementById('bgy').textContent='✈ GYRO ON';
+      } else {
+        document.getElementById('gdbg').textContent='Permission denied';
+      }
+    }).catch(e=>document.getElementById('gdbg').textContent='Err:'+e);
   } else {
-    window.removeEventListener('deviceorientation',onOri);
-    pitch=0;
+    // Android
+    gyroOn=!gyroOn; gyroCalibrated=false;
+    if(gyroOn) window.addEventListener('deviceorientation',onOri,{passive:true});
+    else { window.removeEventListener('deviceorientation',onOri); pitch=0; }
+    document.getElementById('bgy').classList.toggle('on',gyroOn);
+    document.getElementById('bgy').textContent=gyroOn?'✈ GYRO ON':'✈ GYRO';
   }
 }
-
-// Always listen to orientation for debug, even before gyro button pressed
-window.addEventListener('deviceorientation', function debugOri(e){
-  const b=e.beta??'null', g=e.gamma??'null', a=e.alpha??'null';
-  document.getElementById('dbg').textContent=
-    `RAW α:${typeof a==='number'?a.toFixed(1):a}\nRAW β:${typeof b==='number'?b.toFixed(1):b}\nRAW γ:${typeof g==='number'?g.toFixed(1):g}\nGYRO:${gyroOn?'ON':'OFF'}`;
-}, {passive:true});
 
 function onOri(e){
   if(!gyroOn) return;
   const b=e.beta??90, g=e.gamma??0;
-
   if(!gyroCalibrated){
-    calBeta=b; calGamma=g;
-    fBeta=b; fGamma=g;
-    gyroCalibrated=true;
-    return;
+    calBeta=b; calGamma=g; fBeta=b; fGamma=g;
+    gyroCalibrated=true; return;
   }
-
-  fBeta  += SMOOTH*(b - fBeta);
-  fGamma += SMOOTH*(g - fGamma);
-
-  const relBeta  = fBeta  - calBeta;
-  const relGamma = fGamma - calGamma;
-
-  document.getElementById('dbg').textContent=
-    `β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrelβ:${relBeta.toFixed(1)} relγ:${relGamma.toFixed(1)}\nyaw:${yaw.toFixed(1)} pitch:${pitch.toFixed(1)}`;
-
-  const deadY=4;
-  if(Math.abs(relBeta)>deadY){
-    const rate=Math.sign(relBeta)*Math.min(Math.abs(relBeta)-deadY,30)/30;
-    yaw += rate * 1.2;
-  }
-  pitch = Math.max(-70, Math.min(70, -relGamma * 1.8));
+  fBeta  += SMOOTH*(b-fBeta);
+  fGamma += SMOOTH*(g-fGamma);
+  const rb=fBeta-calBeta, rg=fGamma-calGamma;
+  document.getElementById('gdbg').textContent=
+    `β:${fBeta.toFixed(0)} Δβ:${rb.toFixed(0)}\nγ:${fGamma.toFixed(0)} Δγ:${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}°`;
+  // YAW: beta (axis across phone width) — rate based
+  const dead=3;
+  if(Math.abs(rb)>dead) yaw+=Math.sign(rb)*Math.min((Math.abs(rb)-dead)*0.07,1.2);
+  // PITCH: gamma (axis along phone length) — look up/down
+  pitch=Math.max(-70,Math.min(70,-rg*1.5));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
