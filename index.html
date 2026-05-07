@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v21</div>
+  <div id="ver">v22</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -121,8 +121,96 @@ const BRAD=15;                       // bump cylinder radius
 const BFOOT=20;                      // bump foot disk radius
 const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
-const START={x:CCX, y:QMIN-1500, z:GAP*0.5}; // just outside Q-chip south, over launcher
-const START_YAW=180; // yaw=180 → dx=sin(180)=0, dy=-cos(180)=+1 → moves toward +Y = into chip ✓
+const START={x:CCX, y:QMIN-1500, z:GAP*0.5};
+const START_YAW=180;
+
+// ── FLUX LINE DATA ─────────────────────────────────────
+// [x0,y0,x1,y1] centerline segments of coplanar waveguide signal conductors
+const FLUX_LINES=[[11550,7720,11550,8335],[8950,7499,8950,10775],[7599,7450,8901,7450],[7450,7821,7450,11379],[11250,12400,11250,12701],[12321,11750,13379,11750],[9150,12069,9150,12813],[12021,12350,12500,12350],[12225,11950,13280,11950],[9450,12207,9450,12587],[12550,12400,12550,13778],[12550,14660,12550,13920],[12450,12799,12450,13780],[12700,14660,12700,13971],[13850,14660,13850,12520],[9250,14660,9250,13721],[9900,14660,9900,13971],[10250,14660,10250,13920],[8350,14660,8350,13512],[9400,14660,9400,13646],[8850,14660,8850,13412],[10950,14660,10950,12923],[9621,12750,9979,12750],[9150,13138,9150,13579],[9250,13214,9250,13454],[12250,12775,12250,13030],[11468,12557,11468,12943],[11566,12557,11566,12943],[11664,12557,11664,12943],[11762,12557,11762,12943],[11860,12557,11860,12943],[11958,12557,11958,12943],[12056,12557,12056,12943],[9834,10650,11294,10650],[9900,9650,11080,9650],[9586,9950,11179,9950],[9521,9050,12088,9050],[11756,11450,11979,11450],[11250,11699,11250,12400],[10686,11650,11201,11650],[12250,10521,12250,10779],[9250,8481,9250,8779],[11721,10050,11979,10050],[11521,10250,11979,10250],[11620,10150,11980,10150],[11250,9300,11250,9579],[10806,9250,11200,9250],[14660,11450,14020,11450],[14660,10750,12821,10750],[14660,11150,14021,11150],[14660,11750,14021,11750],[14660,12050,14021,12050],[14660,12350,14021,12350],[14660,8850,13121,8850],[14660,8550,13005,8550],[14660,9150,12620,9150],[12821,11350,13579,11350],[12821,10950,13779,10950],[12820,11150,13680,11150],[12821,11550,13479,11550],[12621,9050,12879,9050],[7450,11521,7450,13479],[3871,13950,4979,13950],[7050,12207,7050,13479],[3520,13850,4880,13850],[3720,9250,4384,9250],[3920,11950,4400,11950],[6950,12264,6950,13279],[3921,8950,4629,8950],[7250,12138,7250,13480],[7550,11521,7550,13679],[7750,11521,7750,13679],[3921,12150,4683,12150],[5350,12400,5350,13579],[3821,9150,4617,9150],[5050,11720,5050,13680],[7300,14660,7300,13971],[6121,13750,6479,13750],[6250,14660,6250,14021],[6950,14660,6950,14021],[7450,14660,7450,14021],[6600,14170,6600,14660],[5875,14660,5875,13996],[7950,14660,7950,13021],[6421,13850,6679,13850],[3800,14660,3800,14021],[1940,13250,2680,13250],[1940,12750,2679,12750],[3350,14660,3350,14020],[1940,13450,2779,13450],[2850,12820,2850,13080],[3050,12821,3050,13179],[1940,9450,2579,9450],[1940,9750,2579,9750],[1940,9150,2680,9150],[1940,10150,2580,10150],[1940,8650,3579,8650],[1940,8950,3579,8950],[1940,12300,2656,12300],[3850,10903,3850,11779],[3850,9621,3850,9979],[2820,9050,3480,9050],[2921,9150,3379,9150],[6850,9851,6850,10480],[5420,11350,6501,11350],[7550,10121,7550,11279],[7350,10121,7350,11379],[6850,10808,6850,12161],[6700,11644,6700,11956],[6550,10799,6550,11301],[5400,12350,5898,12350],[4871,9150,5895,9150],[7721,9950,8079,9950],[6700,9344,6700,9656],[4044,7750,5106,7750],[1940,6350,4379,6350],[5450,3821,5450,4900],[3021,6250,4297,6250],[5250,5370,5250,6680],[7350,5608,7350,6480],[5150,5421,5150,6979],[5050,5521,5050,7079],[5521,7550,6394,7550],[5420,6850,6684,6850],[7550,6720,7550,7401],[5621,7450,5846,7450],[5050,4521,5050,5279],[5500,4950,6179,4950],[5350,4320,5350,5156],[5150,4420,5150,5230],[6750,5521,6750,5904],[7750,4521,7750,4914],[7350,4320,7350,4549],[7020,5450,7300,5450],[1940,5950,2679,5950],[1940,6750,2751,6750],[1940,8150,3697,8150],[1940,7850,3866,7850],[1940,7650,3867,7650],[1940,3450,3779,3450],[1940,4150,3379,4150],[3650,1940,3650,2580],[1940,3850,3680,3850],[1940,3150,3679,3150],[3300,1940,3300,2530],[4700,1940,4700,2629],[6650,1940,6650,3379],[5950,1940,5950,2880],[7550,1940,7550,3779],[4350,1940,4350,2679],[5250,1940,5250,2679],[5550,1940,5550,2679],[7350,1940,7350,3073],[7150,1940,7150,2893],[11150,2921,11150,4879],[12200,7250,12730,7250],[14660,7450,10721,7450],[11820,2750,12580,2750],[11350,3220,11350,4476],[12321,3950,12879,3950],[10950,2921,10950,4279],[11250,3121,11250,4979],[10750,2920,10750,4280],[14660,7650,12821,7650],[14660,6750,13417,6750],[14660,7950,12720,7950],[14660,5750,12910,5750],[14660,7350,12870,7350],[12550,4920,12550,5280],[12150,5521,12150,6279],[10120,7550,11380,7550],[10199,4550,10480,4550],[9050,5411,9050,6400],[11250,6994,11250,7231],[8721,6450,9000,6450],[10150,5521,10150,5879],[9896,5075,10101,5075],[9950,4649,9950,4906],[10150,4599,10150,5026],[12350,4921,12350,5279],[12250,5620,12250,6180],[12050,5321,12050,5790],[10421,5250,10979,5250],[10421,5050,10979,5050],[12150,4921,12150,5179],[9250,1940,9250,2879],[11200,1940,11200,2629],[9600,1940,9600,2611],[11550,1940,11550,2479],[11850,1940,11850,2479],[10700,1940,10700,2676],[11000,1940,11000,2630],[8504,3750,8779,3750],[9550,2721,9550,3247],[9350,3428,9350,4079],[10699,569,10699,1640],[13450,1940,13450,3379],[14660,4050,13221,4050],[12750,1940,12750,2580],[14660,4150,13320,4150],[14660,3850,13844,3850],[14171,2900,14660,2900]];
+const FLUX_SQUARES=[[12200,13250,88],[10550,11550,88],[9150,11150,88],[11650,8700,93],[12475,8975,95],[2700,12300,88],[6700,11600,88],[6700,12000,88],[6700,9300,88],[6700,9700,88],[5150,7750,88],[5350,5200,88],[7450,5450,88],[6675,5200,88],[2800,6575,88],[4000,7750,88],[11250,7275,88],[11250,6950,88],[9950,4950,88],[9425,4250,88],[10575,2725,88],[13800,3850,88]];
+
+// ── PARTICLE SYSTEM ────────────────────────────────────
+// Particles travel along flux line segments, then circle the square pad, then dissolve
+const PARTICLE_COUNT = 800;  // total particles across all lines
+const PARTICLE_SPEED = 0.0008; // fraction of line length per ms
+const particles = [];
+
+function initParticles() {
+  // Assign particles to lines proportional to line length
+  const lineLengths = FLUX_LINES.map(l => Math.hypot(l[2]-l[0], l[3]-l[1]));
+  const totalLen = lineLengths.reduce((a,b)=>a+b,0);
+  for(let i=0; i<PARTICLE_COUNT; i++) {
+    const lineIdx = Math.floor(Math.random()*FLUX_LINES.length);
+    particles.push({
+      lineIdx,
+      t: Math.random(),  // 0=start, 1=end of segment, >1=circling square, >2=dissolved
+      phase: 'line',     // 'line','circle','dissolve'
+      circleAngle: 0,
+      circleRadius: 0,
+      opacity: 1.0,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for(const p of particles) {
+    if(p.phase==='line') {
+      const l = FLUX_LINES[p.lineIdx];
+      const len = Math.hypot(l[2]-l[0], l[3]-l[1]);
+      p.t += (PARTICLE_SPEED * dt * 500) / len;
+      if(p.t >= 1.0) {
+        // Find nearest square to end of this line
+        const ex = l[2], ey = l[3];
+        let bestSq=null, bestD=Infinity;
+        for(const sq of FLUX_SQUARES) {
+          const d = Math.hypot(sq[0]-ex, sq[1]-ey);
+          if(d<bestD) { bestD=d; bestSq=sq; }
+        }
+        if(bestSq && bestD < 2000) {
+          p.phase='circle';
+          p.squareCx = bestSq[0]; p.squareCy = bestSq[1];
+          p.circleRadius = bestSq[2]*0.7;
+          p.circleAngle = Math.atan2(ey-bestSq[1], ex-bestSq[0]);
+          p.circleSpeed = 0.003;
+          p.circleCount = 0;
+          p.opacity = 1.0;
+        } else {
+          // restart
+          p.t=0; p.lineIdx=Math.floor(Math.random()*FLUX_LINES.length);
+        }
+      }
+    } else if(p.phase==='circle') {
+      p.circleAngle += p.circleSpeed * dt;
+      p.circleCount += p.circleSpeed * dt;
+      if(p.circleCount > Math.PI*3) { // 1.5 loops
+        p.phase='dissolve';
+      }
+    } else if(p.phase==='dissolve') {
+      p.opacity -= 0.003*dt;
+      if(p.opacity<=0) {
+        // restart on a new random line
+        p.phase='line';
+        p.t=0;
+        p.lineIdx=Math.floor(Math.random()*FLUX_LINES.length);
+        p.opacity=1.0;
+      }
+    }
+  }
+}
+
+function getParticlePos(p) {
+  if(p.phase==='line') {
+    const l=FLUX_LINES[p.lineIdx];
+    return [l[0]+(l[2]-l[0])*p.t, l[1]+(l[3]-l[1])*p.t];
+  } else {
+    return [
+      p.squareCx + Math.cos(p.circleAngle)*p.circleRadius,
+      p.squareCy + Math.sin(p.circleAngle)*p.circleRadius
+    ];
+  }
+}
+
+
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
@@ -374,9 +462,56 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   if(bL3)   drawFlat(bL3,   GAP, COL.nbTop);
   draw3D(bQBox,     COL.qbox);
   draw3D(bBumps,    COL.bump);
-  // draw foot disks in lime — they are baked into bBumps buffer
-  // (different color would need separate buffer; lime color via COL.foot)
-  // For simplicity foot disks share bump buffer — both green, feet brighter in shader via near-field
+  drawParticles();
+}
+
+// ── PARTICLE SHADER ────────────────────────────────────
+const VS_P=`
+attribute vec3 aPos;
+attribute float aOpa;
+uniform mat4 uM;
+varying float vOpa;
+void main(){
+  vOpa=aOpa;
+  gl_Position=uM*vec4(aPos,1.0);
+  gl_PointSize=4.0;
+}`;
+const FS_P=`
+precision mediump float;
+varying float vOpa;
+void main(){
+  vec2 c=gl_PointCoord-0.5;
+  float r=length(c)*2.0;
+  float glow=exp(-r*r*3.0);
+  gl_FragColor=vec4(1.0,0.95,0.2,glow*vOpa);
+}`;
+const PP=mkProg(VS_P,FS_P);
+const pBuf=gl.createBuffer();
+
+function drawParticles(){
+  if(!particles.length) return;
+  const verts=[];
+  const Y=GAP*0.5+2; // just above midpoint so visible
+  for(const p of particles){
+    if(p.phase==='dissolve'&&p.opacity<=0) continue;
+    const [wx,wy]=getParticlePos(p);
+    verts.push(wx, Y, wy, p.opacity);
+  }
+  if(!verts.length) return;
+  gl.useProgram(PP);
+  gl.uniformMatrix4fv(gl.getUniformLocation(PP,'uM'),false,mMVP);
+  gl.bindBuffer(gl.ARRAY_BUFFER,pBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(verts),gl.DYNAMIC_DRAW);
+  const aPos=gl.getAttribLocation(PP,'aPos');
+  const aOpa=gl.getAttribLocation(PP,'aOpa');
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos,3,gl.FLOAT,false,16,0);
+  gl.enableVertexAttribArray(aOpa);
+  gl.vertexAttribPointer(aOpa,1,gl.FLOAT,false,16,12);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE); // additive blend = glow effect
+  gl.drawArrays(gl.POINTS,0,verts.length/4);
+  gl.disable(gl.BLEND);
 }
 
 function render(){
@@ -462,6 +597,7 @@ function fly(ts){
     pos.x=nx;pos.y=ny;pos.z=nz;
     if(hit)doHit();
   }
+  if(!paused) updateParticles(dt*1000);
   render();
   requestAnimationFrame(fly);
 }
@@ -559,9 +695,12 @@ function onOri(e){
     `α:${a.toFixed(0)} β:${b.toFixed(0)} γ:${g.toFixed(0)}\nΔα(yaw):${rAlpha.toFixed(0)} Δγ(pitch):${rGamma.toFixed(0)}`;
 
   // YAW: alpha = Z-axis. Tilt right → yaw right
-  const dead=4;
+  // More sensitive, stops immediately when within dead zone
+  const dead=3;
   if(Math.abs(rAlpha)>dead)
-    yaw += Math.sign(rAlpha) * Math.min((Math.abs(rAlpha)-dead)*0.04, 0.8);
+    yaw += Math.sign(rAlpha) * Math.min((Math.abs(rAlpha)-dead)*0.08, 1.5);
+  else
+    ; // no yaw change — stops immediately when phone is level
 
   // PITCH: gamma = X-axis. Tilt nose down → look down. Phone up = look up.
   // rGamma positive = tilted forward/down → negative pitch (look down)
@@ -633,6 +772,7 @@ async function init(){
   bSiFloor=mkSiFloor();
   bSiCeil =mkSiCeil();
   bQBox   =mkQBox();
+  initParticles();
   lp(100,'Ready — hold phone level…');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
