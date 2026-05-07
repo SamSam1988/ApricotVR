@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v19</div>
+  <div id="ver">v20</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -95,6 +95,7 @@ canvas{display:block;}
   </div>
   <div id="controls">
     <div class="btn" onclick="resetPos()">↺ RESET</div>
+    <div class="btn" id="bpause" onclick="togglePause()">⏸ PAUSE</div>
     <div class="btn" id="bfs" onclick="toggleFS()">⛶ FULL</div>
     <div class="btn" id="b3d" onclick="toggle3D()">👓 3D</div>
     <div class="btn" id="bgy" onclick="toggleGyro()">✈ GYRO</div>
@@ -129,7 +130,7 @@ let spd=100, sIdx=3;
 const SPEEDS=[10,25,50,100,200,500,1000];
 let pos={...START};
 let yaw=START_YAW, pitch=0, inHit=false;
-let frozen=true;
+let frozen=true, paused=false;
 
 // ── WebGL ──────────────────────────────────────────────
 const cv=document.getElementById('c');
@@ -446,7 +447,7 @@ const PRAD=4;
 let lastT=null;
 function fly(ts){
   const dt=lastT?Math.min((ts-lastT)/1000,0.05):0.016; lastT=ts;
-  if(!frozen){
+  if(!frozen && !paused){
     const yr=yaw*Math.PI/180;
     // Move only horizontally — no vertical movement from pitch
     let nx=pos.x+(-Math.sin(yr))*spd*dt;
@@ -551,32 +552,38 @@ function toggleGyro(){
 
 function onOri(e){
   if(!gyroOn) return;
-  const b=e.beta??0, g=e.gamma??0;
+  const a=e.alpha??0, b=e.beta??0, g=e.gamma??0;
   if(!gyroCalibrated){
-    calBeta=b; calGamma=g; fBeta=b; fGamma=g;
+    calBeta=a; calGamma=g; fBeta=a; fGamma=g;
     gyroCalibrated=true; return;
   }
-  fBeta  += SMOOTH*(b-fBeta);
+  // Smooth alpha (wrap-safe)
+  let da=a-fBeta; if(da>180)da-=360; if(da<-180)da+=360;
+  fBeta += SMOOTH*da;
   fGamma += SMOOTH*(g-fGamma);
-  const rb=fBeta-calBeta;   // nod up/down → pitch
-  const rg=fGamma-calGamma; // head shake left/right → yaw
+
+  const rAlpha = fBeta-calBeta;   // Z-axis rotation = tilt left/right = YAW
+  const rGamma = fGamma-calGamma; // X-axis rotation = pitch forward/back = PITCH
 
   document.getElementById('gdbg').textContent=
-    `Δβ(pitch):${rb.toFixed(0)} Δγ(yaw):${rg.toFixed(0)}\nyaw:${yaw.toFixed(0)}° p:${pitch.toFixed(0)}°`;
+    `α:${a.toFixed(0)} β:${b.toFixed(0)} γ:${g.toFixed(0)}\nΔα(yaw):${rAlpha.toFixed(0)} Δγ(pitch):${rGamma.toFixed(0)}`;
 
-  // YAW: gamma = rotation around Y axis = head shake left/right
-  // gamma increases when tilting right → turn RIGHT (positive yaw)
+  // YAW: alpha = Z-axis. Tilt right → yaw right
   const dead=4;
-  if(Math.abs(rg)>dead)
-    yaw += Math.sign(rg) * Math.min((Math.abs(rg)-dead)*0.04, 0.8);
+  if(Math.abs(rAlpha)>dead)
+    yaw += Math.sign(rAlpha) * Math.min((Math.abs(rAlpha)-dead)*0.04, 0.8);
 
-  // PITCH: beta = rotation around X axis = nod up/down
-  // beta increases when tilting forward (nose down) → look DOWN (negative pitch)
-  // So negate: raise phone (beta decreases) → look UP
-  pitch = Math.max(-45, Math.min(45, -rb*1.2));
+  // PITCH: gamma = X-axis. Tilt nose down (gamma increases) → look down
+  pitch = Math.max(-45, Math.min(45, -rGamma*1.2));
 }
 
 // ── CONTROLS ──────────────────────────────────────────
+function togglePause(){
+  paused=!paused;
+  const btn=document.getElementById('bpause');
+  btn.textContent=paused?'▶ RESUME':'⏸ PAUSE';
+  btn.classList.toggle('on',paused);
+}
 function resetPos(){
   pos={...START};yaw=START_YAW;pitch=0;
   frozen=true; gyroCalibrated=false;
