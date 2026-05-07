@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v22</div>
+  <div id="ver">v23</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -485,7 +485,7 @@ void main(){
   float glow=exp(-r*r*3.0);
   gl_FragColor=vec4(1.0,0.95,0.2,glow*vOpa);
 }`;
-const PP=mkProg(VS_P,FS_P);
+const PP=prog(VS_P,FS_P);
 const pBuf=gl.createBuffer();
 
 function drawParticles(){
@@ -694,13 +694,14 @@ function onOri(e){
   document.getElementById('gdbg').textContent=
     `α:${a.toFixed(0)} β:${b.toFixed(0)} γ:${g.toFixed(0)}\nΔα(yaw):${rAlpha.toFixed(0)} Δγ(pitch):${rGamma.toFixed(0)}`;
 
-  // YAW: alpha = Z-axis. Tilt right → yaw right
-  // More sensitive, stops immediately when within dead zone
+  // YAW: phone tilt angle → turn rate (like a joystick, not a wheel)
+  // Phone level (rAlpha near 0) → rate = 0 → fly straight
+  // Phone tilted right 10° → steady rightward turn at fixed rate
+  // Phone tilted right 20° → faster rightward turn
+  // No accumulation — rate comes purely from current tilt
   const dead=3;
-  if(Math.abs(rAlpha)>dead)
-    yaw += Math.sign(rAlpha) * Math.min((Math.abs(rAlpha)-dead)*0.08, 1.5);
-  else
-    ; // no yaw change — stops immediately when phone is level
+  const tilt = Math.abs(rAlpha)>dead ? (rAlpha - Math.sign(rAlpha)*dead) : 0;
+  yaw += tilt * 0.15; // 10° tilt = 1.5°/event turn rate
 
   // PITCH: gamma = X-axis. Tilt nose down → look down. Phone up = look up.
   // rGamma positive = tilted forward/down → negative pitch (look down)
