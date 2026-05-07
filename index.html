@@ -75,7 +75,7 @@ canvas{display:block;}
     <div class="btn" onclick="chSpd(1)">FASTER ▸</div>
   </div>
   <div id="spd">⚡ <span id="sv">100</span> µm/s</div>
-  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v14</div>
+  <div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#0a4;font-size:10px;font-family:monospace;padding:3px 8px;border-radius:3px;pointer-events:none;">v15</div>
 </div>
 <script>
 // ── CONSTANTS ─────────────────────────────────────────
@@ -496,14 +496,17 @@ function toggleGyro(){
   }
 }
 
+// Always listen to orientation for debug, even before gyro button pressed
+window.addEventListener('deviceorientation', function debugOri(e){
+  const b=e.beta??'null', g=e.gamma??'null', a=e.alpha??'null';
+  document.getElementById('dbg').textContent=
+    `RAW α:${typeof a==='number'?a.toFixed(1):a}\nRAW β:${typeof b==='number'?b.toFixed(1):b}\nRAW γ:${typeof g==='number'?g.toFixed(1):g}\nGYRO:${gyroOn?'ON':'OFF'}`;
+}, {passive:true});
+
 function onOri(e){
   if(!gyroOn) return;
   const b=e.beta??90, g=e.gamma??0;
 
-  // Always show raw values for debugging
-  document.getElementById('dbg').textContent=`β:${b.toFixed(1)}  γ:${g.toFixed(1)}\nrelβ:${(b-calBeta).toFixed(1)}  relγ:${(g-calGamma).toFixed(1)}`;
-
-  // First reading = calibration: whatever you hold now is neutral
   if(!gyroCalibrated){
     calBeta=b; calGamma=g;
     fBeta=b; fGamma=g;
@@ -511,24 +514,20 @@ function onOri(e){
     return;
   }
 
-  // Smooth
   fBeta  += SMOOTH*(b - fBeta);
   fGamma += SMOOTH*(g - fGamma);
 
-  const relBeta  = fBeta  - calBeta;   // tilt around width axis → rudder/yaw
-  const relGamma = fGamma - calGamma;  // tilt around length axis → pitch
+  const relBeta  = fBeta  - calBeta;
+  const relGamma = fGamma - calGamma;
 
-  // YAW (rudder): rate-based. Dead zone ±4°.
-  // Tilt top of phone toward you (beta increases) → turn right
-  // Tilt top away (beta decreases) → turn left
+  document.getElementById('dbg').textContent=
+    `β:${b.toFixed(1)} γ:${g.toFixed(1)}\nrelβ:${relBeta.toFixed(1)} relγ:${relGamma.toFixed(1)}\nyaw:${yaw.toFixed(1)} pitch:${pitch.toFixed(1)}`;
+
   const deadY=4;
   if(Math.abs(relBeta)>deadY){
     const rate=Math.sign(relBeta)*Math.min(Math.abs(relBeta)-deadY,30)/30;
-    yaw += rate * 1.2; // max ~1.2°/event = ~72°/sec at 60hz — fast enough, not too snappy
+    yaw += rate * 1.2;
   }
-
-  // PITCH (look up/down only — no altitude change):
-  // Tilt nose down (gamma increases in landscape) → look down
   pitch = Math.max(-70, Math.min(70, -relGamma * 1.8));
 }
 
