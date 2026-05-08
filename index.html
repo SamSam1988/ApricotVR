@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v38</div>
+  <div id="ver">v39</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -133,7 +133,7 @@ const SQUID_SITES=[[8300.0,4664.0,15.0],[8300.0,11936.0,15.0],[8300.0,6964.0,15.
 const FLUX_N       = 50;      // lines per SQUID
 const FLUX_SIGMA   = 18;      // gaussian spread um
 const FLUX_CUTOFF  = 32;      // hard cutoff um
-const FLUX_VIS     = 1500;    // visibility distance um
+const FLUX_VIS     = 1000;    // visibility distance um
 const FLUX_SPEED   = 0.04;    // arrow travel speed um/ms
 let   fluxPhase    = 0;
 const fluxLines    = [];      // {cx,cy,ox,oy}
@@ -186,6 +186,7 @@ function drawFire(vx,vw,vh){
   for(const [cx,cy] of SQUID_SITES){
     const dist=Math.hypot(cx-eyeX,cy-eyeY);
     if(dist>FLUX_VIS) continue;
+    if(bumpOccludesLOS(cx,cy)) continue;
     const fade=Math.min(1,(FLUX_VIS-dist)/(FLUX_VIS-200));
     const top=project(cx,GAP,cy,vx,vw,vh);
     if(!top) continue;
@@ -205,6 +206,7 @@ function drawFire(vx,vw,vh){
     const wx=ln.cx+ln.ox, wy=ln.cy+ln.oy;
     const dist=Math.hypot(wx-eyeX,wy-eyeY);
     if(dist>FLUX_VIS) continue;
+    if(bumpOccludesLOS(wx,wy)) continue;
     const fade=Math.min(1,(FLUX_VIS-dist)/(FLUX_VIS-200));
 
     const bot=project(wx,0,  wy,vx,vw,vh);
@@ -258,14 +260,35 @@ function buildBumpGrid(){
   }
 }
 
-// ── QUBIT STANDING WAVES ──────────────────────────────
+// Line-of-sight: returns true if a bump blocks the view from eye to (tx,ty)
+// Checks bumps along the 2D horizontal path eye→target
+function bumpOccludesLOS(tx, ty){
+  if(!bumpGrid) return false;
+  const ex=pos.x, ey=pos.y;
+  const dx=tx-ex, dy=ty-ey;
+  const dist=Math.hypot(dx,dy);
+  if(dist<1) return false;
+  // Sample along the line at BRAD intervals
+  const steps=Math.ceil(dist/(BRAD*2));
+  for(let s=1;s<steps;s++){
+    const t=s/steps;
+    const px=ex+dx*t, py=ey+dy*t;
+    const key=`${Math.floor(px/BGRID_CELL)},${Math.floor(py/BGRID_CELL)}`;
+    const cell=bumpGrid.get(key);
+    if(!cell) continue;
+    for(const [bx,by] of cell){
+      if(Math.hypot(px-bx,py-by)<BRAD) return true;
+    }
+  }
+  return false;
+}
 // 20 hexagonal qubits on Q-chip (layer 1004, z=GAP)
 // Drum equation: ψ = Σ sin(nπx/W)sin(mπy/H)cos(2πf·t)
 // Visualized as color fill inside qubit bbox, pulsing at ~2Hz
 let qubits = [];
 let waveTime = 0;
 let waveCanvas = null, waveCtx = null;
-const WAVE_VIS  = 1400;  // visibility um
+const WAVE_VIS  = 1000;  // visibility um
 const WAVE_FREQ = 2.0;   // Hz base frequency
 const WAVE_GRID = 20;    // grid resolution
 const WAVE_MODES = [
@@ -300,6 +323,7 @@ function drawWaves(vx, vw, vh){
   for(const q of qubits){
     const dist=Math.hypot(q.cx-eyeX, q.cy-eyeY);
     if(dist>WAVE_VIS) continue;
+    if(bumpOccludesLOS(q.cx, q.cy)) continue;
     const fade=Math.min(1,(WAVE_VIS-dist)/(WAVE_VIS-50));
 
     // Project all grid points, collect screen positions + wave amplitude
@@ -310,9 +334,6 @@ function drawWaves(vx, vw, vh){
       for(let gj=0;gj<=WAVE_GRID;gj++){
         const nx=gi/WAVE_GRID, ny=gj/WAVE_GRID;
         const wx=q.x0+nx*q.w, wy=q.y0+ny*q.h;
-        const sc=project(wx,GAP,wy,vx,vw,vh);
-        if(!sc) continue;
-
         // Drum modes — each qubit has unique phase offset
         let amp=0;
         for(const [n,m,a] of WAVE_MODES){
@@ -321,6 +342,11 @@ function drawWaves(vx, vw, vh){
                   *Math.cos(2*Math.PI*f*waveTime + q.phase);
         }
         amp /= WAVE_MODES.reduce((s,[,,a])=>s+a,0);
+
+        // Surface oscillates ±10µm in Z (into the gap)
+        const wz = GAP + amp * 10.0;
+        const sc=project(wx,wz,wy,vx,vw,vh);
+        if(!sc) continue;
 
         pts2d.push({sx:sc[0],sy:sc[1],amp});
         if(sc[0]<minSX)minSX=sc[0]; if(sc[0]>maxSX)maxSX=sc[0];
