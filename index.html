@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v33</div>
+  <div id="ver">v34</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -165,8 +165,32 @@ function updateFire(dt){
   fluxPhase = (fluxPhase + FLUX_SPEED*dt) % GAP;
 }
 
-// Canvas2D overlay
-let fireCanvas=null, fireCtx=null;
+// ── BUMP SPATIAL GRID for fast occlusion ──────────────
+// Grid cell size = BRAD*2 = 30um. Each cell lists bumps in it.
+let bumpGrid = null;
+const BGRID_CELL = 30;
+function buildBumpGrid(){
+  if(!data) return;
+  bumpGrid = new Map();
+  for(const [bx,by] of data.bumps){
+    const gx=Math.floor(bx/BGRID_CELL), gy=Math.floor(by/BGRID_CELL);
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){
+      const key=`${gx+dx},${gy+dy}`;
+      if(!bumpGrid.has(key)) bumpGrid.set(key,[]);
+      bumpGrid.get(key).push([bx,by]);
+    }
+  }
+}
+function isOccludedByBump(wx,wy){
+  if(!bumpGrid) return false;
+  const key=`${Math.floor(wx/BGRID_CELL)},${Math.floor(wy/BGRID_CELL)}`;
+  const cell=bumpGrid.get(key);
+  if(!cell) return false;
+  for(const [bx,by] of cell){
+    if(Math.hypot(wx-bx,wy-by)<BRAD+2) return true;
+  }
+  return false;
+}
 function ensureFireCanvas(){
   if(fireCanvas) return;
   fireCanvas=document.createElement('canvas');
@@ -239,14 +263,8 @@ function drawFire(vx, vw, vh){
     const top=project(wx,GAP,wy,vx,vw,vh);
     if(!bot||!top) continue;
 
-    // ── Bump occlusion: skip lines that pass through an indium bump
-    if(data){
-      let occluded=false;
-      for(const [bx,by] of data.bumps){
-        if(Math.hypot(wx-bx, wy-by) < BRAD+2){ occluded=true; break; }
-      }
-      if(occluded) continue;
-    }
+    // ── Bump occlusion: O(1) grid lookup
+    if(isOccludedByBump(wx,wy)) continue;
 
     const lineLen=Math.hypot(top[0]-bot[0],top[1]-bot[1]);
     if(lineLen<1) continue;
@@ -813,6 +831,7 @@ async function init(){
   bSiFloor=mkSiFloor();
   bSiCeil =mkSiCeil();
   bQBox   =mkQBox();
+  buildBumpGrid();
   initFire();
   lp(100,'Ready!');
   setTimeout(()=>{
