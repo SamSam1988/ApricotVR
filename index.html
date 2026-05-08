@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v34</div>
+  <div id="ver">v35</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -634,14 +634,18 @@ function fly(ts){
       if(nx>CMAX-PRAD){nx=CMAX-PRAD-30;hit=true;}
       if(ny<CMIN+PRAD){ny=CMIN+PRAD+30;hit=true;}
       if(ny>CMAX-PRAD){ny=CMAX-PRAD-30;hit=true;}
-      if(data){
-        for(const [bx,by] of data.bumps){
-          const d=Math.hypot(nx-bx,ny-by);
-          if(d<BRAD+PRAD){
-            const a=Math.atan2(ny-by,nx-bx);
-            nx=bx+(BRAD+PRAD+30)*Math.cos(a);
-            ny=by+(BRAD+PRAD+30)*Math.sin(a);
-            hit=true;break;
+      if(data && bumpGrid){
+        const key=`${Math.floor(nx/BGRID_CELL)},${Math.floor(ny/BGRID_CELL)}`;
+        const cell=bumpGrid.get(key);
+        if(cell){
+          for(const [bx,by] of cell){
+            const d=Math.hypot(nx-bx,ny-by);
+            if(d<BRAD+PRAD){
+              const a=Math.atan2(ny-by,nx-bx);
+              nx=bx+(BRAD+PRAD+30)*Math.cos(a);
+              ny=by+(BRAD+PRAD+30)*Math.sin(a);
+              hit=true;break;
+            }
           }
         }
       }
