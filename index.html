@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v26</div>
+  <div id="ver">v27</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -186,58 +186,54 @@ function updateFire(dt){
 }
 
 // Render fire particles using Canvas2D overlay (avoids WebGL complexity)
-// We project 3D world pos to screen coords using the current MVP matrix
-function projectPoint(wx, wy, wz, W, H, vpX){
-  // Apply MVP matrix (column-major Float32Array)
-  const m=MVP;
-  const x=m[0]*wx+m[4]*wy+m[8]*wz+m[12];
-  const y=m[1]*wx+m[5]*wy+m[9]*wz+m[13];
-  const z=m[2]*wx+m[6]*wy+m[10]*wz+m[14];
-  const w=m[3]*wx+m[7]*wy+m[11]*wz+m[15];
-  if(w<=0) return null;
-  const ndcX=x/w, ndcY=y/w;
-  return [
-    vpX + (ndcX+1)*0.5*W,
-    (1-ndcY)*0.5*H  // flip Y for canvas
-  ];
-}
-
-// Canvas2D overlay for fire
+// ── MAGNETIC FIELD PARTICLES ──────────────────────────
 let fireCanvas=null, fireCtx=null;
 function ensureFireCanvas(){
   if(fireCanvas) return;
   fireCanvas=document.createElement('canvas');
-  fireCanvas.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+  fireCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:5;';
   document.body.appendChild(fireCanvas);
   fireCtx=fireCanvas.getContext('2d');
 }
 
-function drawFire(W, H, vpX, vpW){
+function drawFire(vx, vw, vh){
   ensureFireCanvas();
-  fireCanvas.width=W; fireCanvas.height=H;
-  fireCtx.clearRect(vpX, 0, vpW, H);
-  
+  // Match canvas to screen once per frame (set by render())
+  const W=cv.width, H=cv.height;
+  if(fireCanvas.width!==W || fireCanvas.height!==H){
+    fireCanvas.width=W; fireCanvas.height=H;
+    fireCanvas.style.width=W+'px'; fireCanvas.style.height=H+'px';
+  }
+  // Clear only this viewport
+  fireCtx.clearRect(vx, 0, vw, vh);
+
   for(const p of fireParts){
-    const sc=projectPoint(p.x, p.z, p.y, vpW, H, vpX);
-    if(!sc) continue;
-    const [sx,sy]=sc;
-    if(sx<vpX||sx>vpX+vpW||sy<0||sy>H) continue;
-    
-    // Color: bottom=deep red, middle=orange, top=yellow-white
+    // project world pos (wx=chipX, wy=chipY, wz=altitude) to screen
+    const wx=p.x, wz=p.y, wy=p.z; // WebGL Y=altitude
+    const m=MVP;
+    const cx2=m[0]*wx+m[4]*wy+m[8]*wz+m[12];
+    const cy2=m[1]*wx+m[5]*wy+m[9]*wz+m[13];
+    const cw =m[3]*wx+m[7]*wy+m[11]*wz+m[15];
+    if(cw<=0.01) continue;
+    const sx = vx + (cx2/cw+1)*0.5*vw;
+    const sy = (1-cy2/cw)*0.5*vh;
+    if(sx<vx||sx>vx+vw||sy<0||sy>vh) continue;
+
     const t=p.z/GAP;
     const fade=1-p.life;
     const r=255;
-    const g=Math.floor(t*220);
-    const b=Math.floor(t*t*180);
-    const alpha=fade*0.85;
-    
-    const sz=p.size*(1-t*0.3);
-    const grad=fireCtx.createRadialGradient(sx,sy,0,sx,sy,sz*2);
+    const g=Math.floor(t*200);
+    const b=Math.floor(t*t*150);
+    const alpha=fade*0.9;
+    const sz=Math.max(1, p.size*(1-t*0.3));
+
+    const grad=fireCtx.createRadialGradient(sx,sy,0,sx,sy,sz*3);
     grad.addColorStop(0,`rgba(${r},${g},${b},${alpha})`);
+    grad.addColorStop(0.4,`rgba(${r},${g},${b},${alpha*0.5})`);
     grad.addColorStop(1,`rgba(${r},${g},${b},0)`);
     fireCtx.fillStyle=grad;
     fireCtx.beginPath();
-    fireCtx.arc(sx,sy,sz*2,0,Math.PI*2);
+    fireCtx.arc(sx,sy,sz*3,0,Math.PI*2);
     fireCtx.fill();
   }
 }
@@ -492,7 +488,7 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   if(bL3)   drawFlat(bL3,   GAP, COL.nbTop);
   draw3D(bQBox,     COL.qbox);
   draw3D(bBumps,    COL.bump);
-  drawFire(vpW, vpH, vpX, vpW);
+  drawFire(vx, vw, vh);
 }
 
 
