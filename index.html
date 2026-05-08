@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v35</div>
+  <div id="ver">v36</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -130,48 +130,124 @@ const SQUID_SITES=[[8300.0,4664.0,15.0],[8300.0,11936.0,15.0],[8300.0,6964.0,15.
 // Each site: [cx, cy, radius]
 
 // ── MAGNETIC FLUX LINES ───────────────────────────────
-// Dense vertical lines from C-chip (y=0) to Q-chip (y=GAP)
-// Gaussian radial distribution around each SQUID center
-// Animated: lines have a phase offset that scrolls upward = flow illusion
-// Visible only within 1500um of viewer
-
-const FLUX_VIS_DIST = 1500;  // um
-const FLUX_SIGMA    = 18;    // gaussian sigma um
-const FLUX_CUTOFF   = 32;    // hard cutoff um
-const FLUX_LINES_PER_SITE = 4000; // halved
-const FLUX_SPEED    = 0.05;  // phase scroll speed (um/ms)
-
-// Pre-generate fixed line positions (radial offsets) per site
-const fluxLines = []; // {cx,cy,ox,oy,radialDist,phase}
-let fluxPhase = 0;    // global scroll phase 0..GAP
+const FLUX_N       = 50;      // lines per SQUID
+const FLUX_SIGMA   = 18;      // gaussian spread um
+const FLUX_CUTOFF  = 32;      // hard cutoff um
+const FLUX_VIS     = 1500;    // visibility distance um
+const FLUX_SPEED   = 0.04;    // arrow travel speed um/ms
+let   fluxPhase    = 0;
+const fluxLines    = [];      // {cx,cy,ox,oy}
+let   fireCanvas   = null;
+let   fireCtx      = null;
 
 function initFire(){
-  fluxLines.length = 0;
+  fluxLines.length=0;
   for(const [cx,cy] of SQUID_SITES){
-    for(let i=0;i<FLUX_LINES_PER_SITE;i++){
-      // Gaussian radial offset via Box-Muller
+    for(let i=0;i<FLUX_N;i++){
       const u1=Math.max(Math.random(),1e-9), u2=Math.random();
       const r=FLUX_SIGMA*Math.sqrt(-2*Math.log(u1));
       const a=u2*Math.PI*2;
       const ox=Math.min(r,FLUX_CUTOFF)*Math.cos(a);
       const oy=Math.min(r,FLUX_CUTOFF)*Math.sin(a);
-      const rd=Math.sqrt(ox*ox+oy*oy);
-      fluxLines.push({cx,cy,ox,oy,rd, phase:Math.random()*GAP});
+      fluxLines.push({cx,cy,ox,oy, phase:Math.random()});
     }
   }
 }
 
 function updateFire(dt){
-  fluxPhase = (fluxPhase + FLUX_SPEED*dt) % GAP;
+  fluxPhase=(fluxPhase+FLUX_SPEED*dt/GAP)%1;
+}
+
+function project(wx,wz,wy,vx,vw,vh){
+  const m=MVP;
+  const cx2=m[0]*wx+m[4]*wz+m[8]*wy+m[12];
+  const cy2=m[1]*wx+m[5]*wz+m[9]*wy+m[13];
+  const cw =m[3]*wx+m[7]*wz+m[11]*wy+m[15];
+  if(cw<=0.01) return null;
+  return [vx+(cx2/cw+1)*0.5*vw, (1-cy2/cw)*0.5*vh];
+}
+
+function drawFire(vx,vw,vh){
+  if(!fireCanvas){
+    fireCanvas=document.createElement('canvas');
+    fireCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:5;';
+    document.body.appendChild(fireCanvas);
+    fireCtx=fireCanvas.getContext('2d');
+  }
+  const W=cv.width,H=cv.height;
+  if(fireCanvas.width!==W||fireCanvas.height!==H){
+    fireCanvas.width=W; fireCanvas.height=H;
+    fireCanvas.style.width=W+'px'; fireCanvas.style.height=H+'px';
+  }
+  fireCtx.clearRect(vx,0,vw,vh);
+  const eyeX=pos.x, eyeY=pos.y;
+
+  // Q-chip glow spots
+  for(const [cx,cy] of SQUID_SITES){
+    const dist=Math.hypot(cx-eyeX,cy-eyeY);
+    if(dist>FLUX_VIS) continue;
+    const fade=Math.min(1,(FLUX_VIS-dist)/(FLUX_VIS-200));
+    const top=project(cx,GAP,cy,vx,vw,vh);
+    if(!top) continue;
+    const [sx,sy]=top;
+    if(sx<vx-80||sx>vx+vw+80||sy<-80||sy>vh+80) continue;
+    const gr=Math.max(6,50*fade);
+    const g=fireCtx.createRadialGradient(sx,sy,0,sx,sy,gr);
+    g.addColorStop(0,  `rgba(255,255,140,${fade*0.9})`);
+    g.addColorStop(0.4,`rgba(255,200,30,${fade*0.6})`);
+    g.addColorStop(1,  `rgba(255,80,0,0)`);
+    fireCtx.fillStyle=g;
+    fireCtx.beginPath(); fireCtx.arc(sx,sy,gr,0,Math.PI*2); fireCtx.fill();
+  }
+
+  // Flux lines with animated arrowheads
+  for(const ln of fluxLines){
+    const wx=ln.cx+ln.ox, wy=ln.cy+ln.oy;
+    const dist=Math.hypot(wx-eyeX,wy-eyeY);
+    if(dist>FLUX_VIS) continue;
+    const fade=Math.min(1,(FLUX_VIS-dist)/(FLUX_VIS-200));
+
+    const bot=project(wx,0,  wy,vx,vw,vh);
+    const top=project(wx,GAP,wy,vx,vw,vh);
+    if(!bot||!top) continue;
+
+    const dx=top[0]-bot[0], dy=top[1]-bot[1];
+    const len=Math.hypot(dx,dy);
+    if(len<2) continue;
+
+    // Line: magenta→orange→yellow gradient
+    const gl2=fireCtx.createLinearGradient(bot[0],bot[1],top[0],top[1]);
+    gl2.addColorStop(0,  `rgba(255,0,120,${fade*0.8})`);
+    gl2.addColorStop(0.5,`rgba(255,140,0,${fade*0.9})`);
+    gl2.addColorStop(1,  `rgba(255,255,80,${fade*0.95})`);
+    fireCtx.strokeStyle=gl2;
+    fireCtx.lineWidth=Math.max(0.8,2.5*fade);
+    fireCtx.beginPath();
+    fireCtx.moveTo(bot[0],bot[1]);
+    fireCtx.lineTo(top[0],top[1]);
+    fireCtx.stroke();
+
+    // Animated arrowhead travelling upward
+    const t=(fluxPhase+ln.phase)%1;
+    const ax=bot[0]+dx*t, ay=bot[1]+dy*t;
+    const ux=dx/len, uy=dy/len;
+    const as=Math.max(3,5*fade);
+    fireCtx.fillStyle=`rgba(255,240,80,${fade})`;
+    fireCtx.beginPath();
+    fireCtx.moveTo(ax+ux*as,        ay+uy*as);
+    fireCtx.lineTo(ax-uy*as*0.5,    ay+ux*as*0.5);
+    fireCtx.lineTo(ax+uy*as*0.5,    ay-ux*as*0.5);
+    fireCtx.closePath();
+    fireCtx.fill();
+  }
 }
 
 // ── BUMP SPATIAL GRID for fast occlusion ──────────────
-// Grid cell size = BRAD*2 = 30um. Each cell lists bumps in it.
-let bumpGrid = null;
-const BGRID_CELL = 30;
+let bumpGrid=null;
+const BGRID_CELL=30;
 function buildBumpGrid(){
   if(!data) return;
-  bumpGrid = new Map();
+  bumpGrid=new Map();
   for(const [bx,by] of data.bumps){
     const gx=Math.floor(bx/BGRID_CELL), gy=Math.floor(by/BGRID_CELL);
     for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){
@@ -181,137 +257,6 @@ function buildBumpGrid(){
     }
   }
 }
-function isOccludedByBump(wx,wy){
-  if(!bumpGrid) return false;
-  const key=`${Math.floor(wx/BGRID_CELL)},${Math.floor(wy/BGRID_CELL)}`;
-  const cell=bumpGrid.get(key);
-  if(!cell) return false;
-  for(const [bx,by] of cell){
-    if(Math.hypot(wx-bx,wy-by)<BRAD+2) return true;
-  }
-  return false;
-}
-function ensureFireCanvas(){
-  if(fireCanvas) return;
-  fireCanvas=document.createElement('canvas');
-  fireCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:5;';
-  document.body.appendChild(fireCanvas);
-  fireCtx=fireCanvas.getContext('2d');
-}
-
-function project(wx,wz,wy, vx,vw,vh){
-  // wx=chipX, wy=chipY, wz=altitude(Y in WebGL)
-  const m=MVP;
-  const cx2=m[0]*wx+m[4]*wz+m[8]*wy+m[12];
-  const cy2=m[1]*wx+m[5]*wz+m[9]*wy+m[13];
-  const cw =m[3]*wx+m[7]*wz+m[11]*wy+m[15];
-  if(cw<=0.01) return null;
-  return [vx+(cx2/cw+1)*0.5*vw, (1-cy2/cw)*0.5*vh];
-}
-
-function drawFire(vx, vw, vh){
-  ensureFireCanvas();
-  const W=cv.width, H=cv.height;
-  if(fireCanvas.width!==W||fireCanvas.height!==H){
-    fireCanvas.width=W; fireCanvas.height=H;
-    fireCanvas.style.width=W+'px'; fireCanvas.style.height=H+'px';
-  }
-  fireCtx.clearRect(vx,0,vw,vh);
-  const eyeX=pos.x, eyeY=pos.y;
-
-  // ── Q-chip glow spots: one per SQUID site, at the top surface (z=GAP)
-  for(const [cx,cy] of SQUID_SITES){
-    const dist=Math.hypot(cx-eyeX, cy-eyeY);
-    if(dist>FLUX_VIS_DIST) continue;
-    const distFade=Math.min(1,(FLUX_VIS_DIST-dist)/Math.max(1,FLUX_VIS_DIST-300));
-    const top=project(cx,GAP,cy,vx,vw,vh);
-    if(!top) continue;
-    const [sx,sy]=top;
-    if(sx<vx-60||sx>vx+vw+60||sy<-60||sy>vh+60) continue;
-    // Glow radius scales with distance — bigger when close
-    const glowR=Math.max(8, 40*(1-dist/FLUX_VIS_DIST));
-    const alpha=distFade*0.75;
-    const grad=fireCtx.createRadialGradient(sx,sy,0,sx,sy,glowR);
-    grad.addColorStop(0,  `rgba(255,255,120,${alpha})`);
-    grad.addColorStop(0.3,`rgba(255,200,40,${alpha*0.8})`);
-    grad.addColorStop(0.7,`rgba(255,120,0,${alpha*0.3})`);
-    grad.addColorStop(1,  `rgba(255,80,0,0)`);
-    fireCtx.fillStyle=grad;
-    fireCtx.beginPath();
-    fireCtx.arc(sx,sy,glowR,0,Math.PI*2);
-    fireCtx.fill();
-  }
-
-  for(const ln of fluxLines){
-    const wx=ln.cx+ln.ox, wy=ln.cy+ln.oy;
-
-    // Distance cull
-    const dist=Math.hypot(wx-eyeX, wy-eyeY);
-    if(dist>FLUX_VIS_DIST) continue;
-
-    // Gaussian intensity
-    const gaussI=Math.exp(-(ln.rd*ln.rd)/(2*FLUX_SIGMA*FLUX_SIGMA));
-
-    // Distance fade: full at <300um, zero at FLUX_VIS_DIST
-    const distFade=Math.min(1,(FLUX_VIS_DIST-dist)/Math.max(1,FLUX_VIS_DIST-300));
-
-    const baseAlpha=gaussI*distFade*1.4; // brighter
-    if(baseAlpha<0.02) continue;
-
-    // Project bottom and top of line
-    const bot=project(wx,0,wy,vx,vw,vh);
-    const top=project(wx,GAP,wy,vx,vw,vh);
-    if(!bot||!top) continue;
-
-    // ── Bump occlusion: O(1) grid lookup
-    if(isOccludedByBump(wx,wy)) continue;
-
-    const lineLen=Math.hypot(top[0]-bot[0],top[1]-bot[1]);
-    if(lineLen<1) continue;
-
-    const grad=fireCtx.createLinearGradient(bot[0],bot[1],top[0],top[1]);
-    const bandPos=(fluxPhase+ln.phase)%GAP/GAP;
-    const bw=0.25;
-    for(let s=0;s<=8;s++){
-      const t=s/8;
-      let d=Math.abs(t-bandPos); if(d>0.5) d=1-d;
-      const bright=Math.exp(-(d*d)/(2*bw*bw));
-      const rr=255;
-      const gg=Math.floor(30+t*225);
-      const bb=Math.floor(Math.max(0,120-t*120)+t*t*255);
-      const a=Math.min(1,baseAlpha*(0.4+bright*1.1));
-      grad.addColorStop(t,`rgba(${rr},${gg},${bb},${a})`);
-    }
-    const lw=Math.max(1.0, 3.0*distFade*gaussI);
-    fireCtx.strokeStyle=grad;
-    fireCtx.lineWidth=lw;
-    fireCtx.beginPath();
-    fireCtx.moveTo(bot[0],bot[1]);
-    fireCtx.lineTo(top[0],top[1]);
-    fireCtx.stroke();
-
-    // ── Animated arrowhead: travels up the line with the bright band
-    {
-      const ax=bot[0]+(top[0]-bot[0])*bandPos;
-      const ay=bot[1]+(top[1]-bot[1])*bandPos;
-      const ddx=top[0]-bot[0], ddy=top[1]-bot[1];
-      const dlen=Math.hypot(ddx,ddy);
-      if(dlen>2){
-        const ux=ddx/dlen, uy=ddy/dlen;
-        const px=-uy, py=ux;
-        const as=Math.max(2, lw*3.5);
-        const arrowAlpha=Math.min(1, baseAlpha*1.4);
-        fireCtx.fillStyle=`rgba(255,240,100,${arrowAlpha})`;
-        fireCtx.beginPath();
-        fireCtx.moveTo(ax+ux*as,      ay+uy*as);
-        fireCtx.lineTo(ax+px*as*0.55, ay+py*as*0.55);
-        fireCtx.lineTo(ax-px*as*0.55, ay-py*as*0.55);
-        fireCtx.closePath();
-        fireCtx.fill();
-      }
-    }
-  } // end for loop
-} // end drawFire
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
