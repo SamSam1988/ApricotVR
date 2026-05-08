@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v36</div>
+  <div id="ver">v37</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -254,6 +254,90 @@ function buildBumpGrid(){
       const key=`${gx+dx},${gy+dy}`;
       if(!bumpGrid.has(key)) bumpGrid.set(key,[]);
       bumpGrid.get(key).push([bx,by]);
+    }
+  }
+}
+
+// ── QUBIT STANDING WAVES ──────────────────────────────
+// 2D drum equation on each qubit bbox: ψ(x,y,t) = sin(nπx/W)·sin(mπy/H)·cos(ωt)
+// Rendered as color overlay on the Q-chip surface (z=GAP)
+// Multiple modes superimposed for complexity
+let qubits = [];        // from qubit_data.json
+let waveTime = 0;
+let waveCanvas = null, waveCtx = null;
+const WAVE_VIS = 1200;  // visibility distance um
+const WAVE_MODES = [    // [n,m, amplitude, frequency_multiplier]
+  [1,1, 1.0, 1.0],
+  [2,1, 0.4, 1.58],
+  [1,2, 0.4, 1.58],
+  [2,2, 0.2, 2.0],
+  [3,1, 0.15, 1.87],
+];
+
+function updateWaves(dt){
+  waveTime += dt * 0.003; // slow oscillation
+}
+
+function drawWaves(vx, vw, vh){
+  if(!qubits.length) return;
+  if(!waveCanvas){
+    waveCanvas = document.createElement('canvas');
+    waveCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:4;';
+    document.body.appendChild(waveCanvas);
+    waveCtx = waveCanvas.getContext('2d');
+  }
+  const W=cv.width, H=cv.height;
+  if(waveCanvas.width!==W||waveCanvas.height!==H){
+    waveCanvas.width=W; waveCanvas.height=H;
+    waveCanvas.style.width=W+'px'; waveCanvas.style.height=H+'px';
+  }
+  waveCtx.clearRect(vx,0,vw,vh);
+
+  const eyeX=pos.x, eyeY=pos.y;
+  const GRID = 16; // grid resolution per qubit
+
+  for(const q of qubits){
+    const dist = Math.hypot(q.cx-eyeX, q.cy-eyeY);
+    if(dist > WAVE_VIS) continue;
+    const fade = Math.min(1,(WAVE_VIS-dist)/(WAVE_VIS-100));
+
+    // Sample grid points across qubit bbox, project to screen
+    // and draw as colored dots/gradient
+    const xs = q.w / GRID, ys = q.h / GRID;
+
+    for(let gi=0;gi<=GRID;gi++){
+      for(let gj=0;gj<=GRID;gj++){
+        const wx = q.cx - q.w/2 + gi*xs;
+        const wy = q.cy - q.h/2 + gj*ys;
+        const nx = gi/GRID, ny = gj/GRID; // normalized 0..1
+
+        // Evaluate superimposed drum modes
+        let amp = 0;
+        for(const [n,m,a,fq] of WAVE_MODES){
+          amp += a * Math.sin(n*Math.PI*nx) * Math.sin(m*Math.PI*ny)
+                   * Math.cos(waveTime * fq + q.phase);
+        }
+        amp /= WAVE_MODES.reduce((s,[,,a])=>s+a, 0); // normalize to max 1
+
+        // Project to screen at Q-chip altitude (z=GAP)
+        const sc = project(wx, GAP, wy, vx, vw, vh);
+        if(!sc) continue;
+        const [sx,sy] = sc;
+        if(sx<vx-2||sx>vx+vw+2||sy<-2||sy>vh+2) continue;
+
+        // Color: positive=cyan-white, negative=deep blue, zero=dark
+        const t = (amp+1)/2; // 0..1
+        const rr = Math.floor(t*180);
+        const gg = Math.floor(t*220);
+        const bb = Math.floor(80 + t*175);
+        const a  = Math.min(1, fade * (0.1 + Math.abs(amp)*0.8));
+
+        const r2 = Math.max(1.5, 4*fade*(1-dist/WAVE_VIS));
+        waveCtx.fillStyle = `rgba(${rr},${gg},${bb},${a})`;
+        waveCtx.beginPath();
+        waveCtx.arc(sx,sy,r2,0,Math.PI*2);
+        waveCtx.fill();
+      }
     }
   }
 }
@@ -509,6 +593,7 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   draw3D(bQBox,     COL.qbox);
   draw3D(bBumps,    COL.bump);
   drawFire(vx, vw, vh);
+  drawWaves(vx, vw, vh);
 }
 
 
@@ -598,6 +683,7 @@ function fly(ts){
       if(hit)doHit();
     }
     updateFire(dt*1000);
+    updateWaves(dt*1000);
     render();
   }catch(e){
     console.error('fly error:',e);
@@ -782,6 +868,10 @@ async function init(){
   bQBox   =mkQBox();
   buildBumpGrid();
   initFire();
+  // Load qubit standing wave data
+  fetch('qubit_data.json').then(r=>r.json()).then(qd=>{
+    qubits = qd.qubits.map(q=>({...q, phase: Math.random()*Math.PI*2}));
+  }).catch(()=>{});
   lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
