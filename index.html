@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v40</div>
+  <div id="ver">v41</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -99,8 +99,8 @@ canvas{display:block;}
     <div class="btn" id="bfs" onclick="toggleFS()">⛶ FULL</div>
     <div class="btn" id="b3d" onclick="toggle3D()">👓 3D</div>
     <div class="btn" id="bgy" onclick="toggleGyro()">✈ GYRO</div>
-    <div class="btn" onclick="chSpd(-1)">◂ SLOW</div>
-    <div class="btn" onclick="chSpd(1)">FAST ▸</div>
+    <div class="btn" id="bslow" onclick="chSpd(-1)">◂ SLOW</div>
+    <div class="btn" id="bfast" onclick="chSpd(1)">FAST ▸</div>
   </div>
 </div>
 <script>
@@ -397,8 +397,9 @@ let signalLines = [];   // from signal_data.json
 let resonatorData = []; // resonators per qubit
 let sigTime = 0;
 const SIG_VIS    = 1000;  // visibility um
-const SIG_SPEED  = 0.0004; // fraction of line per ms
-const SIG_NPART  = 6;    // particles per line
+const SIG_SPEED  = 0.004; // fast particles — 10x faster
+const SIG_NPART  = 4;    // particles per line
+const SIG_TAIL   = 4;    // short tail steps
 
 // Unique color per resonator (hue varies)
 const RES_COLORS = [
@@ -468,11 +469,11 @@ function drawSignals(vx, vw, vh){
       const headT=((sigTime + p/SIG_NPART + ln.offset)%1);
       const headDist=headT*totalLen;
 
-      // Draw 8-step comet tail
-      const TAIL=8;
+      // Draw short comet tail
+      const TAIL=SIG_TAIL;
       for(let t=0;t<TAIL;t++){
         const tailFrac=t/TAIL;
-        const td=headDist - tailFrac*Math.min(80,totalLen*0.15);
+        const td=headDist - tailFrac*Math.min(25,totalLen*0.05); // much shorter trail
         if(td<0) continue;
         const d=Math.max(0,td);
         // Find position on line
@@ -804,6 +805,8 @@ let bL130=null,bL2=null,bL3=null,bBumps=null,bSiFloor=null,bSiCeil=null,bQBox=nu
 
 function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   gl.viewport(vx,0,vw,vh);
+  gl.scissor(vx,0,vw,vh);
+  gl.enable(gl.SCISSOR_TEST);
   gl.clearColor(...COL.bg);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
@@ -861,7 +864,13 @@ function drawMinimap(){
   mx.fillRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
   mx.strokeStyle='#0f8'; mx.lineWidth=0.8;
   mx.strokeRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
-  // Direction arrow + dot
+  // Qubit dots
+  for(const q of qubits){
+    const qpx=mapX(q.cx), qpy=mapY(q.cy);
+    mx.beginPath(); mx.arc(qpx,qpy,2,0,Math.PI*2);
+    mx.fillStyle='rgba(80,200,255,0.8)'; mx.fill();
+  }
+  // Direction arrow + dot (player)
   const px=mapX(pos.x), py=mapY(pos.y);
   const yr=yaw*Math.PI/180;
   mx.strokeStyle='#ff0'; mx.lineWidth=1.5;
@@ -1042,24 +1051,15 @@ function toggle3D(){
   mode3D=!mode3D;
   document.getElementById('b3d').classList.toggle('on',mode3D);
   document.getElementById('vsep').style.display=mode3D?'block':'none';
-  // Barrel distortion approximation via SVG filter for Google Cardboard
-  if(mode3D){
-    cv.style.filter='url(#barrel)';
-    if(!document.getElementById('barrel-filter')){
-      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-      svg.id='barrel-filter';
-      svg.style.cssText='position:absolute;width:0;height:0;';
-      svg.innerHTML=`<defs>
-        <filter id="barrel" x="-10%" y="-10%" width="120%" height="120%">
-          <feImage href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>"/>
-          <feDisplacementMap in="SourceGraphic" scale="0"/>
-        </filter></defs>`;
-      document.body.appendChild(svg);
-    }
-  } else {
-    cv.style.filter='none';
-    if(fireCanvas) fireCanvas.style.filter='none';
-  }
+  // In 3D mode: hide speed buttons (no finger access), auto-enable gyro
+  document.getElementById('bslow').style.display=mode3D?'none':'';
+  document.getElementById('bfast').style.display=mode3D?'none':'';
+  if(mode3D && !gyroOn) toggleGyro();
+  cv.style.filter='none';
+  if(fireCanvas)  fireCanvas.style.filter='none';
+  if(waveCanvas)  waveCanvas.style.filter='none';
+  if(sigCanvas)   sigCanvas.style.filter='none';
+  if(resCanvas)   resCanvas.style.filter='none';
 }
 function chSpd(d){
   sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
