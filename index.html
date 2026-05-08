@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v39</div>
+  <div id="ver">v40</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -390,6 +390,188 @@ function drawWaves(vx, vw, vh){
   }
 }
 
+// ── SIGNAL LINES (Layer 135) ──────────────────────────
+// Running light particles with comet trail ("שובל")
+// Particles flow along each line segment
+let signalLines = [];   // from signal_data.json
+let resonatorData = []; // resonators per qubit
+let sigTime = 0;
+const SIG_VIS    = 1000;  // visibility um
+const SIG_SPEED  = 0.0004; // fraction of line per ms
+const SIG_NPART  = 6;    // particles per line
+
+// Unique color per resonator (hue varies)
+const RES_COLORS = [
+  [0,255,255],[80,200,255],[160,120,255],[255,80,200],
+  [255,160,0],[200,255,0],[0,255,160],[255,100,100],
+  [100,180,255],[255,220,80],[180,255,100],[255,60,180],
+  [60,220,255],[255,140,60],[140,255,180],[200,100,255],
+  [255,200,60],[80,255,200],[255,80,80],[100,255,140],
+];
+
+let sigCanvas=null, sigCtx=null;
+
+function updateSignals(dt){
+  sigTime = (sigTime + SIG_SPEED*dt) % 1;
+}
+
+function drawSignals(vx, vw, vh){
+  if(!signalLines.length) return;
+  if(!sigCanvas){
+    sigCanvas=document.createElement('canvas');
+    sigCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:6;';
+    document.body.appendChild(sigCanvas);
+    sigCtx=sigCanvas.getContext('2d');
+  }
+  const W=cv.width,H=cv.height;
+  if(sigCanvas.width!==W||sigCanvas.height!==H){
+    sigCanvas.width=W; sigCanvas.height=H;
+    sigCanvas.style.width=W+'px'; sigCanvas.style.height=H+'px';
+  }
+  sigCtx.clearRect(vx,0,vw,vh);
+  const eyeX=pos.x, eyeY=pos.y;
+
+  for(const ln of signalLines){
+    // Line midpoint for distance check
+    const pts=ln.pts;
+    if(pts.length<2) continue;
+    const mx=pts[Math.floor(pts.length/2)][0];
+    const my=pts[Math.floor(pts.length/2)][1];
+    const dist=Math.hypot(mx-eyeX,my-eyeY);
+    if(dist>SIG_VIS) continue;
+    if(bumpOccludesLOS(mx,my)) continue;
+    const fade=Math.min(1,(SIG_VIS-dist)/(SIG_VIS-100));
+
+    // Draw dim baseline line
+    sigCtx.strokeStyle=`rgba(100,180,255,${fade*0.2})`;
+    sigCtx.lineWidth=1;
+    sigCtx.beginPath();
+    let first=true;
+    for(const [wx,wy] of pts){
+      const sc=project(wx,GAP*0.5,wy,vx,vw,vh); // on C-chip surface level
+      if(!sc) continue;
+      first?sigCtx.moveTo(sc[0],sc[1]):sigCtx.lineTo(sc[0],sc[1]);
+      first=false;
+    }
+    sigCtx.stroke();
+
+    // Compute cumulative arc length for each point
+    const cumLen=[0];
+    for(let i=1;i<pts.length;i++){
+      cumLen.push(cumLen[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+    }
+    const totalLen=cumLen[cumLen.length-1];
+    if(totalLen<1) continue;
+
+    // Draw SIG_NPART particles evenly spaced, with comet tail
+    for(let p=0;p<SIG_NPART;p++){
+      const headT=((sigTime + p/SIG_NPART + ln.offset)%1);
+      const headDist=headT*totalLen;
+
+      // Draw 8-step comet tail
+      const TAIL=8;
+      for(let t=0;t<TAIL;t++){
+        const tailFrac=t/TAIL;
+        const td=headDist - tailFrac*Math.min(80,totalLen*0.15);
+        if(td<0) continue;
+        const d=Math.max(0,td);
+        // Find position on line
+        let seg=0;
+        for(;seg<cumLen.length-1;seg++){
+          if(cumLen[seg+1]>=d) break;
+        }
+        seg=Math.min(seg,pts.length-2);
+        const segFrac=(d-cumLen[seg])/Math.max(0.001,cumLen[seg+1]-cumLen[seg]);
+        const wx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*segFrac;
+        const wy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*segFrac;
+        const sc=project(wx,GAP*0.5,wy,vx,vw,vh);
+        if(!sc) continue;
+        const [sx,sy]=sc;
+        if(sx<vx-5||sx>vx+vw+5||sy<-5||sy>vh+5) continue;
+
+        const brightness=1-tailFrac;
+        const sz=Math.max(1, (t===0?3:2)*fade*brightness);
+        const alpha=fade*brightness*(t===0?1.0:0.6);
+        sigCtx.fillStyle=t===0
+          ?`rgba(255,255,255,${alpha})`
+          :`rgba(120,200,255,${alpha})`;
+        sigCtx.beginPath();
+        sigCtx.arc(sx,sy,sz,0,Math.PI*2);
+        sigCtx.fill();
+      }
+    }
+  }
+}
+
+// ── RESONATORS (Layer 7) ──────────────────────────────
+// Standing wave patterns along each resonator's path segments
+// Each resonator has a unique color, oscillates at ~5GHz (visualized ~1Hz)
+const RES_WAVE_FREQ = 1.5; // Hz visual frequency
+let resCanvas=null, resCtx=null;
+
+function drawResonators(vx, vw, vh){
+  if(!resonatorData.length) return;
+  if(!resCanvas){
+    resCanvas=document.createElement('canvas');
+    resCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:3;';
+    document.body.appendChild(resCanvas);
+    resCtx=resCanvas.getContext('2d');
+  }
+  const W=cv.width,H=cv.height;
+  if(resCanvas.width!==W||resCanvas.height!==H){
+    resCanvas.width=W; resCanvas.height=H;
+    resCanvas.style.width=W+'px'; resCanvas.style.height=H+'px';
+  }
+  resCtx.clearRect(vx,0,vw,vh);
+  const eyeX=pos.x, eyeY=pos.y;
+
+  for(let ri=0; ri<resonatorData.length; ri++){
+    const res=resonatorData[ri];
+    const dist=Math.hypot(res.cx-eyeX,res.cy-eyeY);
+    if(dist>SIG_VIS) continue;
+    if(bumpOccludesLOS(res.cx,res.cy)) continue;
+    const fade=Math.min(1,(SIG_VIS-dist)/(SIG_VIS-100));
+    const [cr,cg,cb]=RES_COLORS[ri%RES_COLORS.length];
+
+    // Draw each segment as a standing wave
+    for(const seg of res.segs){
+      if(seg.length<2) continue;
+      // Compute cumulative length
+      const cumLen=[0];
+      for(let i=1;i<seg.length;i++)
+        cumLen.push(cumLen[i-1]+Math.hypot(seg[i][0]-seg[i-1][0],seg[i][1]-seg[i-1][1]));
+      const totalLen=cumLen[cumLen.length-1];
+      if(totalLen<10) continue;
+
+      // Standing wave: sample 30 points along segment
+      const N=30;
+      resCtx.beginPath();
+      let started=false;
+      for(let k=0;k<=N;k++){
+        const d=(k/N)*totalLen;
+        let seg2=0;
+        for(;seg2<cumLen.length-1;seg2++) if(cumLen[seg2+1]>=d) break;
+        seg2=Math.min(seg2,seg.length-2);
+        const sf=(d-cumLen[seg2])/Math.max(0.001,cumLen[seg2+1]-cumLen[seg2]);
+        const wx=seg[seg2][0]+(seg[seg2+1][0]-seg[seg2][0])*sf;
+        const wy=seg[seg2][1]+(seg[seg2+1][1]-seg[seg2][1])*sf;
+        // Standing wave: half-sine envelope * time oscillation
+        const standAmp=Math.sin(Math.PI*k/N)*Math.cos(2*Math.PI*RES_WAVE_FREQ*waveTime+res.phase)*3;
+        // Perp offset in 3D (offset in Z = altitude)
+        const wz=GAP+standAmp;
+        const sc=project(wx,wz,wy,vx,vw,vh);
+        if(!sc) continue;
+        started?resCtx.lineTo(sc[0],sc[1]):resCtx.moveTo(sc[0],sc[1]);
+        started=true;
+      }
+      const alpha=fade*0.7;
+      resCtx.strokeStyle=`rgba(${cr},${cg},${cb},${alpha})`;
+      resCtx.lineWidth=Math.max(0.8,1.5*fade);
+      resCtx.stroke();
+    }
+  }
+}
+
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
 let spd=100, sIdx=3;
@@ -642,6 +824,8 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   draw3D(bBumps,    COL.bump);
   drawFire(vx, vw, vh);
   drawWaves(vx, vw, vh);
+  drawSignals(vx, vw, vh);
+  drawResonators(vx, vw, vh);
 }
 
 
@@ -732,6 +916,7 @@ function fly(ts){
     }
     updateFire(dt*1000);
     updateWaves(dt*1000);
+    updateSignals(dt*1000);
     render();
   }catch(e){
     console.error('fly error:',e);
@@ -926,6 +1111,12 @@ async function init(){
     }));
     console.log('Qubits loaded:', qubits.length);
   }).catch(e=>console.warn('qubit_data.json not found',e));
+
+  fetch('signal_data.json').then(r=>r.json()).then(sd=>{
+    signalLines = sd.signal_lines.map(l=>({...l, offset:Math.random()}));
+    resonatorData = sd.resonators.map(r=>({...r, phase:Math.random()*Math.PI*2}));
+    console.log('Signals loaded:', signalLines.length, 'lines,', resonatorData.length, 'resonators');
+  }).catch(e=>console.warn('signal_data.json not found',e));
   lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
