@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v25</div>
+  <div id="ver">v26</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -123,6 +123,124 @@ const BFOOT_H=1.0;                   // foot disk height
 const SEGS=20;
 const START={x:CCX, y:QMIN-1500, z:GAP*0.5};
 const START_YAW=180;
+
+
+// ── SQUID SITES (layer 3 — magnetic field sources) ────
+const SQUID_SITES=[[8300.0,4664.0,15.0],[8300.0,11936.0,15.0],[8300.0,6964.0,15.0],[8300.0,9636.0,15.0],[12742.0,8445.0,20.0],[10650.0,9364.0,15.0],[9500.0,9664.0,15.0],[11800.0,9664.0,15.0],[9653.0,10655.0,33.0],[11953.0,10655.0,33.0],[10725.0,12667.0,15.0],[10650.0,11936.0,15.0],[9500.0,11964.0,15.0],[11800.0,11964.0,15.0],[9500.0,13464.0,15.0],[11953.0,8306.0,33.0],[9347.0,8294.0,33.0],[4800.0,9336.0,15.0],[4647.0,10645.0,33.0],[3300.0,9345.0,15.0],[5950.0,9364.0,15.0],[6947.0,10645.0,33.0],[3920.0,10715.0,17.0],[7100.0,9664.0,15.0],[5950.0,11936.0,15.0],[4800.0,11964.0,15.0],[7100.0,11964.0,15.0],[8228.0,12668.0,15.0],[6947.0,8294.0,33.0],[4800.0,6936.0,15.0],[4755.0,8278.0,36.0],[5950.0,7236.0,15.0],[7100.0,7264.0,15.0],[3918.0,8238.0,18.0],[5875.0,3933.0,15.0],[5950.0,4664.0,15.0],[7100.0,3136.0,15.0],[4800.0,4636.0,15.0],[7100.0,4636.0,15.0],[4647.0,5945.0,33.0],[6947.0,5945.0,33.0],[8372.0,3932.0,15.0],[9500.0,4636.0,15.0],[11800.0,4636.0,15.0],[10650.0,4664.0,15.0],[12680.0,5885.0,17.0],[9653.0,5955.0,33.0],[11953.0,5955.0,33.0],[9500.0,6936.0,15.0],[11800.0,6936.0,15.0],[13300.0,6936.0,15.0],[10650.0,7236.0,15.0]];
+// Each site: [cx, cy, radius]
+
+// ── MAGNETIC FIELD PARTICLES ──────────────────────────
+// Fire-like upward flow from C-chip surface, through the gap, up to Q-chip
+// Each site spawns particles that rise, drift, and glow orange/red/white
+const FIRE_PER_SITE = 12;
+const fireParts = [];
+
+function initFire(){
+  fireParts.length = 0;
+  for(const [cx,cy,r] of SQUID_SITES){
+    for(let i=0;i<FIRE_PER_SITE;i++){
+      fireParts.push(spawnFire(cx,cy,r));
+    }
+  }
+}
+
+function spawnFire(cx,cy,r){
+  const angle = Math.random()*Math.PI*2;
+  const rad   = Math.random()*r*0.8;
+  return {
+    cx,cy,r,
+    x: cx + Math.cos(angle)*rad,
+    y: cy + Math.sin(angle)*rad,
+    z: Math.random()*GAP,       // start at random height
+    vz: 0.08 + Math.random()*0.12, // upward speed um/ms
+    vx: (Math.random()-0.5)*0.04,
+    vy: (Math.random()-0.5)*0.04,
+    life: Math.random(),        // 0=new, 1=dead
+    lifeSpeed: 0.003+Math.random()*0.004,
+    size: 3+Math.random()*4,
+  };
+}
+
+function updateFire(dt){
+  for(const p of fireParts){
+    p.z += p.vz*dt;
+    p.x += p.vx*dt;
+    p.y += p.vy*dt;
+    p.life += p.lifeSpeed*dt;
+    // slight inward drift to keep near center
+    p.x += (p.cx-p.x)*0.001*dt;
+    p.y += (p.cy-p.y)*0.001*dt;
+    if(p.life>=1.0 || p.z>GAP+5){
+      // respawn
+      const angle=Math.random()*Math.PI*2;
+      const rad=Math.random()*p.r*0.8;
+      p.x=p.cx+Math.cos(angle)*rad;
+      p.y=p.cy+Math.sin(angle)*rad;
+      p.z=0;
+      p.vz=0.08+Math.random()*0.12;
+      p.vx=(Math.random()-0.5)*0.04;
+      p.vy=(Math.random()-0.5)*0.04;
+      p.life=0;
+    }
+  }
+}
+
+// Render fire particles using Canvas2D overlay (avoids WebGL complexity)
+// We project 3D world pos to screen coords using the current MVP matrix
+function projectPoint(wx, wy, wz, W, H, vpX){
+  // Apply MVP matrix (column-major Float32Array)
+  const m=MVP;
+  const x=m[0]*wx+m[4]*wy+m[8]*wz+m[12];
+  const y=m[1]*wx+m[5]*wy+m[9]*wz+m[13];
+  const z=m[2]*wx+m[6]*wy+m[10]*wz+m[14];
+  const w=m[3]*wx+m[7]*wy+m[11]*wz+m[15];
+  if(w<=0) return null;
+  const ndcX=x/w, ndcY=y/w;
+  return [
+    vpX + (ndcX+1)*0.5*W,
+    (1-ndcY)*0.5*H  // flip Y for canvas
+  ];
+}
+
+// Canvas2D overlay for fire
+let fireCanvas=null, fireCtx=null;
+function ensureFireCanvas(){
+  if(fireCanvas) return;
+  fireCanvas=document.createElement('canvas');
+  fireCanvas.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+  document.body.appendChild(fireCanvas);
+  fireCtx=fireCanvas.getContext('2d');
+}
+
+function drawFire(W, H, vpX, vpW){
+  ensureFireCanvas();
+  fireCanvas.width=W; fireCanvas.height=H;
+  fireCtx.clearRect(vpX, 0, vpW, H);
+  
+  for(const p of fireParts){
+    const sc=projectPoint(p.x, p.z, p.y, vpW, H, vpX);
+    if(!sc) continue;
+    const [sx,sy]=sc;
+    if(sx<vpX||sx>vpX+vpW||sy<0||sy>H) continue;
+    
+    // Color: bottom=deep red, middle=orange, top=yellow-white
+    const t=p.z/GAP;
+    const fade=1-p.life;
+    const r=255;
+    const g=Math.floor(t*220);
+    const b=Math.floor(t*t*180);
+    const alpha=fade*0.85;
+    
+    const sz=p.size*(1-t*0.3);
+    const grad=fireCtx.createRadialGradient(sx,sy,0,sx,sy,sz*2);
+    grad.addColorStop(0,`rgba(${r},${g},${b},${alpha})`);
+    grad.addColorStop(1,`rgba(${r},${g},${b},0)`);
+    fireCtx.fillStyle=grad;
+    fireCtx.beginPath();
+    fireCtx.arc(sx,sy,sz*2,0,Math.PI*2);
+    fireCtx.fill();
+  }
+}
 
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
@@ -374,19 +492,18 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   if(bL3)   drawFlat(bL3,   GAP, COL.nbTop);
   draw3D(bQBox,     COL.qbox);
   draw3D(bBumps,    COL.bump);
+  drawFire(vpW, vpH, vpX, vpW);
 }
 
 
 function render(){
   const W=cv.width,H=cv.height;
-  const ex=pos.x, ey=pos.z, ez=pos.y;
+  const ex=pos.x, ey=GAP/2, ez=pos.y;
   const pc=Math.max(-65,Math.min(65,pitch));
   if(mode3D){
-    // IPD offset in world units (~63mm real = ~630um at chip scale feels good)
-    const IPD=400;
+    const IPD=300; // interpupillary offset in um
     const yr=yaw*Math.PI/180;
-    // Perpendicular to forward direction (right vector)
-    const rx= Math.cos(yr), rz=-Math.sin(yr);
+    const rx=Math.cos(yr), rz=-Math.sin(yr); // right vector perpendicular to forward
     renderEye(ex-rx*IPD/2, ey, ez-rz*IPD/2, yaw, pc, 0,   W/2, H);
     renderEye(ex+rx*IPD/2, ey, ez+rz*IPD/2, yaw, pc, W/2, W/2, H);
   } else {
@@ -460,6 +577,7 @@ function fly(ts){
       pos.x=nx;pos.y=ny;pos.z=nz;
       if(hit)doHit();
     }
+    updateFire(dt*1000);
     render();
   }catch(e){
     console.error('fly error:',e);
@@ -637,6 +755,7 @@ async function init(){
   bSiFloor=mkSiFloor();
   bSiCeil =mkSiCeil();
   bQBox   =mkQBox();
+  initFire();
   lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
