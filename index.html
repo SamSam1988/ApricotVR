@@ -6,35 +6,35 @@
 <title>ApricotVR</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#0f8;}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#6af;}
 canvas{display:block;}
 #ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
 #dashboard{
   position:absolute;bottom:10px;left:10px;
-  background:rgba(0,8,4,0.88);border:1px solid #0a4;
+  background:rgba(0,4,20,0.88);border:1px solid #0054ff;
   border-radius:8px;padding:8px 10px;pointer-events:none;
   display:flex;flex-direction:column;align-items:center;gap:4px;
 }
-.dval{font-size:11px;color:#0d6;text-align:center;}
+.dval{font-size:11px;color:#4af;text-align:center;}
 #controls{
   position:absolute;bottom:10px;right:10px;
   display:flex;flex-direction:column;gap:5px;pointer-events:all;
 }
 .btn{
-  background:rgba(0,20,10,0.92);border:1px solid #0a4;color:#0f8;
+  background:rgba(0,10,40,0.92);border:1px solid #0054ff;color:#6af;
   padding:7px 10px;border-radius:5px;font-family:'Courier New',monospace;font-size:10px;
   cursor:pointer;text-align:center;min-width:88px;
   user-select:none;-webkit-user-select:none;touch-action:manipulation;
 }
-.btn:active{background:rgba(0,60,30,0.9);}
-.btn.on{background:rgba(0,80,40,0.9);border-color:#0f8;color:#fff;}
+.btn:active{background:rgba(0,30,120,0.9);}
+.btn.on{background:rgba(0,40,180,0.9);border-color:#6af;color:#fff;}
 #loading{
   position:fixed;top:0;left:0;width:100%;height:100%;background:#000;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  z-index:100;color:#0f8;font-size:14px;gap:12px;
+  z-index:100;color:#6af;font-size:14px;gap:12px;
 }
-#pbar{width:260px;height:3px;background:#010;border:1px solid #0a4;border-radius:2px;}
-#pfill{height:100%;background:#0f8;width:0%;}
+#pbar{width:260px;height:3px;background:#010;border:1px solid #0054ff;border-radius:2px;}
+#pfill{height:100%;background:#4af;width:0%;}
 #hit{position:fixed;top:0;left:0;width:100%;height:100%;
   background:rgba(255,60,0,0.28);pointer-events:none;display:none;z-index:20;}
 #vsep{position:fixed;top:0;left:50%;width:3px;height:100%;background:#000;z-index:9;display:none;}
@@ -42,13 +42,13 @@ canvas{display:block;}
   font-size:10px;font-family:monospace;padding:4px 6px;border-radius:3px;z-index:30;
   white-space:pre;pointer-events:none;}
 #ver{position:absolute;top:6px;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,0.5);color:#0a4;font-size:9px;padding:2px 6px;
+  background:rgba(0,0,0,0.5);color:#0054ff;font-size:9px;padding:2px 6px;
   border-radius:3px;pointer-events:none;}
 /* Landscape prompt */
 #landscape-prompt{
   display:none;position:fixed;top:0;left:0;width:100%;height:100%;
   background:#000;z-index:200;flex-direction:column;
-  align-items:center;justify-content:center;gap:20px;color:#0f8;text-align:center;padding:20px;
+  align-items:center;justify-content:center;gap:20px;color:#6af;text-align:center;padding:20px;
 }
 #landscape-prompt svg{animation:tilt 2s ease-in-out infinite alternate;}
 @keyframes tilt{from{transform:rotate(0deg);}to{transform:rotate(-90deg);}}
@@ -61,10 +61,10 @@ canvas{display:block;}
   <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
     <rect x="12" y="8" width="40" height="48" rx="4" stroke="#0f8" stroke-width="2.5"/>
     <circle cx="32" cy="50" r="3" fill="#0f8"/>
-    <line x1="24" y1="8" x2="24" y2="56" stroke="#0a4" stroke-width="1"/>
+    <line x1="24" y1="8" x2="24" y2="56" stroke="#0054ff" stroke-width="1"/>
   </svg>
   <div style="font-size:18px;font-weight:bold;">Rotate your phone</div>
-  <div style="font-size:13px;color:#0a4;">This experience requires<br>LANDSCAPE orientation</div>
+  <div style="font-size:13px;color:#0054ff;">This experience requires<br>LANDSCAPE orientation</div>
 </div>
 
 <div id="loading">
@@ -76,11 +76,11 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v41</div>
+  <div id="ver">v42</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs><style>.st1{fill:#fff;fill-rule:evenodd;}.st2{fill:#0f8;fill-rule:evenodd;}</style></defs>
+      <defs><style>.st1{fill:#fff;fill-rule:evenodd;}.st2{fill:#0054ff;fill-rule:evenodd;}</style></defs>
       <g>
         <path class="st1" d="M233.1,270.9c-7.7-2.4-14.9-7.1-22.9-11.8,31.4-20.9,53.6-57.3,53.6-97.8,0-64.4-52.2-116.6-116.6-116.6s-9.5.3-14.2.9c-11.8-9.4-15.6-16.3-16.7-19.9,9.9-2.3,20.3-3.5,30.9-3.5,76.9,0,139.2,62.3,139.2,139.2s-22.3,84.1-53.3,109.6ZM190,141c4.6,4,6.8,10.9,6.8,13.1s-3.4-5.1-10.3-5.7c-6.8-.6-18.2,1.7-19.4-4.6-1.1-6.3-6.3-8.5-14.8-10.8,0,0,19.4-1.1,26.8-1.1,7.4,0,6.3,5.2,10.8,9.1ZM75.1,69.6c-27.1,21.4-44.6,54.5-44.6,91.7,0,64.4,52.2,116.6,116.6,116.6s9.1-.3,13.6-.8c6.7,7.6,13.3,13.9,20.2,19.2-10.8,2.7-22.1,4.1-33.7,4.1-76.9,0-139.2-62.3-139.2-139.2s22.4-86.9,56.9-112.2c5.1,4.6,8.7,11.5,10.2,20.5ZM175.6,209.4c-18.6,13.9,7.2,41.8,7.2,41.8,41.9,41.4,104.5,38.2,104.5,38.2v22.3c-68.1,2.3-106-31.5-106-31.5-39-48.9-5.6-70.7-5.6-70.7Z"/>
         <path class="st2" d="M139.5,61.7c14.5,14.5,15.7,21.7,22.3,26.5,6.6,4.8,39.8,25.9,39.8,25.9,9.7,7.9,11.5,27.7,14.5,33.8,3,6.1,16.3,15,19.9,18.7,3.6,3.7,4.8,7.2,1.2,9.7-3.6,2.4-6,2.4-7.2,10.9-1.2,8.5-9.7,16.2-13.3,20.5-3.6,4.3-10.3,17.5-21.1,8.4-1.5-1.3-3-2.4-4.5-3.3-10.1-7.3-14.1-6.6-14.1-6.6h0c-4.2-.4-7.6,1.4-10.2,4.9-7.6,8.4-19.2,30.3,10.5,67.5,0,0,.2.2.6.6-24.1-19.5-30-41.2-30-41.2v.2c-.8-2.4-1.2-4.9-1.7-7.5-5.4-28.2,12.7-38.9,19.4-41,8.3-2.2,18.3.3,23.4,4.7,13.3,11.5,21.7,1.2,27.2-6,5.4-7.2,0-6.1-4.8-12.7-4.8-6.6,8.4-7.2,8.4-7.2,0,0-3-3.7-8.4-9.1-5.4-5.4-10.3-23.6-13.9-30.8-3.6-7.2-42.2-29-46.5-29-4.2,0-9.7-10.3-9.7-10.3-6.6-8.4-38.6-45.3-38.6-45.3-4.8-5.4-6-20.5-4.8-29.6,1.2-9,7.2,3,7.2,3-.6,18.1,19.9,29.6,34.4,44Z"/>
@@ -91,7 +91,7 @@ canvas{display:block;}
     <div class="dval" id="dpos">0 , 0</div>
     <div class="dval" id="dhdg">HDG 180°</div>
     <div class="dval" id="dspd">100 µm/s</div>
-    <canvas id="minimap" width="72" height="72" style="border:1px solid #0a4;border-radius:3px;margin-top:2px;"></canvas>
+    <canvas id="minimap" width="72" height="72" style="border:1px solid #0054ff;border-radius:3px;margin-top:2px;"></canvas>
   </div>
   <div id="controls">
     <div class="btn" onclick="resetPos()">↺ RESET</div>
@@ -343,8 +343,8 @@ function drawWaves(vx, vw, vh){
         }
         amp /= WAVE_MODES.reduce((s,[,,a])=>s+a,0);
 
-        // Surface oscillates ±10µm in Z (into the gap)
-        const wz = GAP + amp * 10.0;
+        // Surface oscillates 0..+10µm ABOVE the Q-chip surface (never into the gap)
+        const wz = GAP + Math.max(0, amp) * 10.0;
         const sc=project(wx,wz,wy,vx,vw,vh);
         if(!sc) continue;
 
@@ -367,7 +367,7 @@ function drawWaves(vx, vw, vh){
       const rr=Math.floor(t*120);
       const gg=Math.floor(40+t*215);
       const bb=Math.floor(120+t*135);
-      const alpha=fade*(0.15+Math.abs(amp)*0.65);
+      const alpha=fade*(0.10+Math.abs(amp)*0.40); // reduced max alpha
       waveCtx.fillStyle=`rgba(${rr},${gg},${bb},${alpha})`;
       waveCtx.fillRect(sx-cw/2,sy-ch/2,cw+0.5,ch+0.5);
     }
@@ -397,9 +397,8 @@ let signalLines = [];   // from signal_data.json
 let resonatorData = []; // resonators per qubit
 let sigTime = 0;
 const SIG_VIS    = 1000;  // visibility um
-const SIG_SPEED  = 0.004; // fast particles — 10x faster
-const SIG_NPART  = 4;    // particles per line
-const SIG_TAIL   = 4;    // short tail steps
+const SIG_SPEED  = 0.005; // fast particles
+const SIG_NPART  = 12;   // many particles per line — busy feel
 
 // Unique color per resonator (hue varies)
 const RES_COLORS = [
@@ -464,42 +463,25 @@ function drawSignals(vx, vw, vh){
     const totalLen=cumLen[cumLen.length-1];
     if(totalLen<1) continue;
 
-    // Draw SIG_NPART particles evenly spaced, with comet tail
+    // Draw SIG_NPART individual fast particles — no trail, just bright dots
     for(let p=0;p<SIG_NPART;p++){
-      const headT=((sigTime + p/SIG_NPART + ln.offset)%1);
-      const headDist=headT*totalLen;
-
-      // Draw short comet tail
-      const TAIL=SIG_TAIL;
-      for(let t=0;t<TAIL;t++){
-        const tailFrac=t/TAIL;
-        const td=headDist - tailFrac*Math.min(25,totalLen*0.05); // much shorter trail
-        if(td<0) continue;
-        const d=Math.max(0,td);
-        // Find position on line
-        let seg=0;
-        for(;seg<cumLen.length-1;seg++){
-          if(cumLen[seg+1]>=d) break;
-        }
-        seg=Math.min(seg,pts.length-2);
-        const segFrac=(d-cumLen[seg])/Math.max(0.001,cumLen[seg+1]-cumLen[seg]);
-        const wx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*segFrac;
-        const wy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*segFrac;
-        const sc=project(wx,GAP*0.5,wy,vx,vw,vh);
-        if(!sc) continue;
-        const [sx,sy]=sc;
-        if(sx<vx-5||sx>vx+vw+5||sy<-5||sy>vh+5) continue;
-
-        const brightness=1-tailFrac;
-        const sz=Math.max(1, (t===0?3:2)*fade*brightness);
-        const alpha=fade*brightness*(t===0?1.0:0.6);
-        sigCtx.fillStyle=t===0
-          ?`rgba(255,255,255,${alpha})`
-          :`rgba(120,200,255,${alpha})`;
-        sigCtx.beginPath();
-        sigCtx.arc(sx,sy,sz,0,Math.PI*2);
-        sigCtx.fill();
-      }
+      const t=((sigTime*3 + p/SIG_NPART + ln.offset)%1);
+      const d=t*totalLen;
+      let seg=0;
+      for(;seg<cumLen.length-1;seg++) if(cumLen[seg+1]>=d) break;
+      seg=Math.min(seg,pts.length-2);
+      const sf=(d-cumLen[seg])/Math.max(0.001,cumLen[seg+1]-cumLen[seg]);
+      const wx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*sf;
+      const wy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*sf;
+      const sc=project(wx,GAP*0.5,wy,vx,vw,vh);
+      if(!sc) continue;
+      const [sx,sy]=sc;
+      if(sx<vx-4||sx>vx+vw+4||sy<-4||sy>vh+4) continue;
+      const sz=Math.max(1.5, 2.5*fade);
+      sigCtx.fillStyle=`rgba(255,255,255,${fade*0.9})`;
+      sigCtx.beginPath();
+      sigCtx.arc(sx,sy,sz,0,Math.PI*2);
+      sigCtx.fill();
     }
   }
 }
@@ -857,12 +839,12 @@ function drawMinimap(){
   function mapX(wx){return M+(wx-CMIN)/(CMAX-CMIN)*(W-2*M);}
   function mapY(wy){return M+(wy-CMIN)/(CMAX-CMIN)*(H-2*M);}
   // C-chip outline
-  mx.strokeStyle='#0a4'; mx.lineWidth=1;
+  mx.strokeStyle='#0054ff'; mx.lineWidth=1;
   mx.strokeRect(M,M,W-2*M,H-2*M);
   // Q-chip
-  mx.fillStyle='rgba(0,80,40,0.35)';
+  mx.fillStyle='rgba(0,40,120,0.35)';
   mx.fillRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
-  mx.strokeStyle='#0f8'; mx.lineWidth=0.8;
+  mx.strokeStyle='#4af'; mx.lineWidth=0.8;
   mx.strokeRect(mapX(QMIN),mapY(QMIN),mapX(QMAX)-mapX(QMIN),mapY(QMAX)-mapY(QMIN));
   // Qubit dots
   for(const q of qubits){
