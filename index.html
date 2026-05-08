@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v32</div>
+  <div id="ver">v33</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -138,7 +138,7 @@ const SQUID_SITES=[[8300.0,4664.0,15.0],[8300.0,11936.0,15.0],[8300.0,6964.0,15.
 const FLUX_VIS_DIST = 1500;  // um
 const FLUX_SIGMA    = 18;    // gaussian sigma um
 const FLUX_CUTOFF   = 32;    // hard cutoff um
-const FLUX_LINES_PER_SITE = 8000; // 10x dense coverage
+const FLUX_LINES_PER_SITE = 4000; // halved
 const FLUX_SPEED    = 0.05;  // phase scroll speed (um/ms)
 
 // Pre-generate fixed line positions (radial offsets) per site
@@ -239,34 +239,32 @@ function drawFire(vx, vw, vh){
     const top=project(wx,GAP,wy,vx,vw,vh);
     if(!bot||!top) continue;
 
-    // Draw as vertical gradient line with animated brightness
-    // Phase creates a "moving" bright band traveling upward
+    // ── Bump occlusion: skip lines that pass through an indium bump
+    if(data){
+      let occluded=false;
+      for(const [bx,by] of data.bumps){
+        if(Math.hypot(wx-bx, wy-by) < BRAD+2){ occluded=true; break; }
+      }
+      if(occluded) continue;
+    }
+
     const lineLen=Math.hypot(top[0]-bot[0],top[1]-bot[1]);
     if(lineLen<1) continue;
 
-    // Use a gradient along the line
     const grad=fireCtx.createLinearGradient(bot[0],bot[1],top[0],top[1]);
-
-    // Animate: bright band travels upward (phase scrolls)
-    // At phase position along the line, brightness peaks
-    const bandPos=(fluxPhase+ln.phase)%GAP/GAP; // 0..1 along line
-    const bw=0.25; // band width fraction
-
+    const bandPos=(fluxPhase+ln.phase)%GAP/GAP;
+    const bw=0.25;
     for(let s=0;s<=8;s++){
       const t=s/8;
-      // distance from band center (wrapping)
-      let d=Math.abs(t-bandPos);
-      if(d>0.5) d=1-d;
+      let d=Math.abs(t-bandPos); if(d>0.5) d=1-d;
       const bright=Math.exp(-(d*d)/(2*bw*bw));
-
       const rr=255;
-      const gg=Math.floor(30+t*225);  // magenta→orange→yellow
-      const bb=Math.floor(Math.max(0,120-t*120)+t*t*255); // magenta bottom, blue-white top
+      const gg=Math.floor(30+t*225);
+      const bb=Math.floor(Math.max(0,120-t*120)+t*t*255);
       const a=Math.min(1,baseAlpha*(0.4+bright*1.1));
       grad.addColorStop(t,`rgba(${rr},${gg},${bb},${a})`);
     }
-
-    const lw=Math.max(1.0, 3.0*distFade*gaussI); // thicker
+    const lw=Math.max(1.0, 3.0*distFade*gaussI);
     fireCtx.strokeStyle=grad;
     fireCtx.lineWidth=lw;
     fireCtx.beginPath();
@@ -274,22 +272,22 @@ function drawFire(vx, vw, vh){
     fireCtx.lineTo(top[0],top[1]);
     fireCtx.stroke();
 
-    // Arrowhead at top — only draw on ~1 in 8 lines to avoid clutter
-    if(ln.rd < FLUX_SIGMA && baseAlpha > 0.4){
-      const ax=top[0], ay=top[1];
-      // Direction vector (bot→top on screen)
+    // ── Animated arrowhead: travels up the line with the bright band
+    {
+      const ax=bot[0]+(top[0]-bot[0])*bandPos;
+      const ay=bot[1]+(top[1]-bot[1])*bandPos;
       const ddx=top[0]-bot[0], ddy=top[1]-bot[1];
       const dlen=Math.hypot(ddx,ddy);
-      if(dlen>3){
-        const ux=ddx/dlen, uy=ddy/dlen; // unit up
-        const px=-uy, py=ux;            // unit perp
-        const as=Math.max(3, lw*4);     // arrow size
-        const arrowAlpha=Math.min(1,baseAlpha*1.2);
-        fireCtx.fillStyle=`rgba(255,220,80,${arrowAlpha})`;
+      if(dlen>2){
+        const ux=ddx/dlen, uy=ddy/dlen;
+        const px=-uy, py=ux;
+        const as=Math.max(2, lw*3.5);
+        const arrowAlpha=Math.min(1, baseAlpha*1.4);
+        fireCtx.fillStyle=`rgba(255,240,100,${arrowAlpha})`;
         fireCtx.beginPath();
-        fireCtx.moveTo(ax+ux*as,        ay+uy*as);
-        fireCtx.lineTo(ax+px*as*0.5,    ay+py*as*0.5);
-        fireCtx.lineTo(ax-px*as*0.5,    ay-py*as*0.5);
+        fireCtx.moveTo(ax+ux*as,      ay+uy*as);
+        fireCtx.lineTo(ax+px*as*0.55, ay+py*as*0.55);
+        fireCtx.lineTo(ax-px*as*0.55, ay-py*as*0.55);
         fireCtx.closePath();
         fireCtx.fill();
       }
