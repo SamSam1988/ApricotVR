@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v31</div>
+  <div id="ver">v32</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -138,7 +138,7 @@ const SQUID_SITES=[[8300.0,4664.0,15.0],[8300.0,11936.0,15.0],[8300.0,6964.0,15.
 const FLUX_VIS_DIST = 1500;  // um
 const FLUX_SIGMA    = 18;    // gaussian sigma um
 const FLUX_CUTOFF   = 32;    // hard cutoff um
-const FLUX_LINES_PER_SITE = 800; // dense coverage
+const FLUX_LINES_PER_SITE = 8000; // 10x dense coverage
 const FLUX_SPEED    = 0.05;  // phase scroll speed (um/ms)
 
 // Pre-generate fixed line positions (radial offsets) per site
@@ -193,8 +193,30 @@ function drawFire(vx, vw, vh){
     fireCanvas.style.width=W+'px'; fireCanvas.style.height=H+'px';
   }
   fireCtx.clearRect(vx,0,vw,vh);
-
   const eyeX=pos.x, eyeY=pos.y;
+
+  // ── Q-chip glow spots: one per SQUID site, at the top surface (z=GAP)
+  for(const [cx,cy] of SQUID_SITES){
+    const dist=Math.hypot(cx-eyeX, cy-eyeY);
+    if(dist>FLUX_VIS_DIST) continue;
+    const distFade=Math.min(1,(FLUX_VIS_DIST-dist)/Math.max(1,FLUX_VIS_DIST-300));
+    const top=project(cx,GAP,cy,vx,vw,vh);
+    if(!top) continue;
+    const [sx,sy]=top;
+    if(sx<vx-60||sx>vx+vw+60||sy<-60||sy>vh+60) continue;
+    // Glow radius scales with distance — bigger when close
+    const glowR=Math.max(8, 40*(1-dist/FLUX_VIS_DIST));
+    const alpha=distFade*0.75;
+    const grad=fireCtx.createRadialGradient(sx,sy,0,sx,sy,glowR);
+    grad.addColorStop(0,  `rgba(255,255,120,${alpha})`);
+    grad.addColorStop(0.3,`rgba(255,200,40,${alpha*0.8})`);
+    grad.addColorStop(0.7,`rgba(255,120,0,${alpha*0.3})`);
+    grad.addColorStop(1,  `rgba(255,80,0,0)`);
+    fireCtx.fillStyle=grad;
+    fireCtx.beginPath();
+    fireCtx.arc(sx,sy,glowR,0,Math.PI*2);
+    fireCtx.fill();
+  }
 
   for(const ln of fluxLines){
     const wx=ln.cx+ln.ox, wy=ln.cy+ln.oy;
