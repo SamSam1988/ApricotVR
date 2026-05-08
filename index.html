@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v37</div>
+  <div id="ver">v38</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -259,85 +259,107 @@ function buildBumpGrid(){
 }
 
 // ── QUBIT STANDING WAVES ──────────────────────────────
-// 2D drum equation on each qubit bbox: ψ(x,y,t) = sin(nπx/W)·sin(mπy/H)·cos(ωt)
-// Rendered as color overlay on the Q-chip surface (z=GAP)
-// Multiple modes superimposed for complexity
-let qubits = [];        // from qubit_data.json
+// 20 hexagonal qubits on Q-chip (layer 1004, z=GAP)
+// Drum equation: ψ = Σ sin(nπx/W)sin(mπy/H)cos(2πf·t)
+// Visualized as color fill inside qubit bbox, pulsing at ~2Hz
+let qubits = [];
 let waveTime = 0;
 let waveCanvas = null, waveCtx = null;
-const WAVE_VIS = 1200;  // visibility distance um
-const WAVE_MODES = [    // [n,m, amplitude, frequency_multiplier]
-  [1,1, 1.0, 1.0],
-  [2,1, 0.4, 1.58],
-  [1,2, 0.4, 1.58],
-  [2,2, 0.2, 2.0],
-  [3,1, 0.15, 1.87],
+const WAVE_VIS  = 1400;  // visibility um
+const WAVE_FREQ = 2.0;   // Hz base frequency
+const WAVE_GRID = 20;    // grid resolution
+const WAVE_MODES = [
+  [1,1, 1.00],  // fundamental
+  [2,1, 0.35],  // 2nd harmonic x
+  [1,2, 0.35],  // 2nd harmonic y
+  [3,1, 0.12],
+  [1,3, 0.12],
+  [2,2, 0.18],
 ];
 
 function updateWaves(dt){
-  waveTime += dt * 0.003; // slow oscillation
+  waveTime += dt/1000; // seconds
 }
 
 function drawWaves(vx, vw, vh){
   if(!qubits.length) return;
   if(!waveCanvas){
-    waveCanvas = document.createElement('canvas');
+    waveCanvas=document.createElement('canvas');
     waveCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:4;';
     document.body.appendChild(waveCanvas);
-    waveCtx = waveCanvas.getContext('2d');
+    waveCtx=waveCanvas.getContext('2d');
   }
-  const W=cv.width, H=cv.height;
+  const W=cv.width,H=cv.height;
   if(waveCanvas.width!==W||waveCanvas.height!==H){
     waveCanvas.width=W; waveCanvas.height=H;
     waveCanvas.style.width=W+'px'; waveCanvas.style.height=H+'px';
   }
   waveCtx.clearRect(vx,0,vw,vh);
-
   const eyeX=pos.x, eyeY=pos.y;
-  const GRID = 16; // grid resolution per qubit
 
   for(const q of qubits){
-    const dist = Math.hypot(q.cx-eyeX, q.cy-eyeY);
-    if(dist > WAVE_VIS) continue;
-    const fade = Math.min(1,(WAVE_VIS-dist)/(WAVE_VIS-100));
+    const dist=Math.hypot(q.cx-eyeX, q.cy-eyeY);
+    if(dist>WAVE_VIS) continue;
+    const fade=Math.min(1,(WAVE_VIS-dist)/(WAVE_VIS-50));
 
-    // Sample grid points across qubit bbox, project to screen
-    // and draw as colored dots/gradient
-    const xs = q.w / GRID, ys = q.h / GRID;
+    // Project all grid points, collect screen positions + wave amplitude
+    const pts2d = [];
+    let minSX=Infinity,maxSX=-Infinity,minSY=Infinity,maxSY=-Infinity;
 
-    for(let gi=0;gi<=GRID;gi++){
-      for(let gj=0;gj<=GRID;gj++){
-        const wx = q.cx - q.w/2 + gi*xs;
-        const wy = q.cy - q.h/2 + gj*ys;
-        const nx = gi/GRID, ny = gj/GRID; // normalized 0..1
-
-        // Evaluate superimposed drum modes
-        let amp = 0;
-        for(const [n,m,a,fq] of WAVE_MODES){
-          amp += a * Math.sin(n*Math.PI*nx) * Math.sin(m*Math.PI*ny)
-                   * Math.cos(waveTime * fq + q.phase);
-        }
-        amp /= WAVE_MODES.reduce((s,[,,a])=>s+a, 0); // normalize to max 1
-
-        // Project to screen at Q-chip altitude (z=GAP)
-        const sc = project(wx, GAP, wy, vx, vw, vh);
+    for(let gi=0;gi<=WAVE_GRID;gi++){
+      for(let gj=0;gj<=WAVE_GRID;gj++){
+        const nx=gi/WAVE_GRID, ny=gj/WAVE_GRID;
+        const wx=q.x0+nx*q.w, wy=q.y0+ny*q.h;
+        const sc=project(wx,GAP,wy,vx,vw,vh);
         if(!sc) continue;
-        const [sx,sy] = sc;
-        if(sx<vx-2||sx>vx+vw+2||sy<-2||sy>vh+2) continue;
 
-        // Color: positive=cyan-white, negative=deep blue, zero=dark
-        const t = (amp+1)/2; // 0..1
-        const rr = Math.floor(t*180);
-        const gg = Math.floor(t*220);
-        const bb = Math.floor(80 + t*175);
-        const a  = Math.min(1, fade * (0.1 + Math.abs(amp)*0.8));
+        // Drum modes — each qubit has unique phase offset
+        let amp=0;
+        for(const [n,m,a] of WAVE_MODES){
+          const f=WAVE_FREQ*Math.sqrt(n*n+m*m);
+          amp += a*Math.sin(n*Math.PI*nx)*Math.sin(m*Math.PI*ny)
+                  *Math.cos(2*Math.PI*f*waveTime + q.phase);
+        }
+        amp /= WAVE_MODES.reduce((s,[,,a])=>s+a,0);
 
-        const r2 = Math.max(1.5, 4*fade*(1-dist/WAVE_VIS));
-        waveCtx.fillStyle = `rgba(${rr},${gg},${bb},${a})`;
-        waveCtx.beginPath();
-        waveCtx.arc(sx,sy,r2,0,Math.PI*2);
-        waveCtx.fill();
+        pts2d.push({sx:sc[0],sy:sc[1],amp});
+        if(sc[0]<minSX)minSX=sc[0]; if(sc[0]>maxSX)maxSX=sc[0];
+        if(sc[1]<minSY)minSY=sc[1]; if(sc[1]>maxSY)maxSY=sc[1];
       }
+    }
+    if(!pts2d.length) continue;
+    if(maxSX<vx||minSX>vx+vw||maxSY<0||minSY>vh) continue;
+
+    // Draw as colored rectangles (screen-space grid cells)
+    const cellW=(maxSX-minSX)/WAVE_GRID;
+    const cellH=(maxSY-minSY)/WAVE_GRID;
+    const cw=Math.max(1,cellW), ch=Math.max(1,cellH);
+
+    for(const {sx,sy,amp} of pts2d){
+      const t=(amp+1)/2; // 0..1
+      // Color: negative = deep blue, zero = dark teal, positive = bright cyan/white
+      const rr=Math.floor(t*120);
+      const gg=Math.floor(40+t*215);
+      const bb=Math.floor(120+t*135);
+      const alpha=fade*(0.15+Math.abs(amp)*0.65);
+      waveCtx.fillStyle=`rgba(${rr},${gg},${bb},${alpha})`;
+      waveCtx.fillRect(sx-cw/2,sy-ch/2,cw+0.5,ch+0.5);
+    }
+
+    // Draw qubit outline
+    if(q.pts && q.pts.length>2){
+      waveCtx.strokeStyle=`rgba(80,255,200,${fade*0.7})`;
+      waveCtx.lineWidth=1;
+      waveCtx.beginPath();
+      let first=true;
+      for(const [px,py] of q.pts){
+        const sc=project(px,GAP,py,vx,vw,vh);
+        if(!sc) continue;
+        first ? waveCtx.moveTo(sc[0],sc[1]) : waveCtx.lineTo(sc[0],sc[1]);
+        first=false;
+      }
+      waveCtx.closePath();
+      waveCtx.stroke();
     }
   }
 }
@@ -870,8 +892,14 @@ async function init(){
   initFire();
   // Load qubit standing wave data
   fetch('qubit_data.json').then(r=>r.json()).then(qd=>{
-    qubits = qd.qubits.map(q=>({...q, phase: Math.random()*Math.PI*2}));
-  }).catch(()=>{});
+    qubits = qd.qubits.map(q=>({
+      ...q,
+      x0: q.x0 ?? q.cx-q.w/2,
+      y0: q.y0 ?? q.cy-q.h/2,
+      phase: Math.random()*Math.PI*2
+    }));
+    console.log('Qubits loaded:', qubits.length);
+  }).catch(e=>console.warn('qubit_data.json not found',e));
   lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
