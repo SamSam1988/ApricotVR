@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v42</div>
+  <div id="ver">v43</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -448,7 +448,7 @@ function drawSignals(vx, vw, vh){
     sigCtx.beginPath();
     let first=true;
     for(const [wx,wy] of pts){
-      const sc=project(wx,GAP*0.5,wy,vx,vw,vh); // on C-chip surface level
+      const sc=project(wx,2.0,wy,vx,vw,vh); // 2um above C-chip surface
       if(!sc) continue;
       first?sigCtx.moveTo(sc[0],sc[1]):sigCtx.lineTo(sc[0],sc[1]);
       first=false;
@@ -473,14 +473,20 @@ function drawSignals(vx, vw, vh){
       const sf=(d-cumLen[seg])/Math.max(0.001,cumLen[seg+1]-cumLen[seg]);
       const wx=pts[seg][0]+(pts[seg+1][0]-pts[seg][0])*sf;
       const wy=pts[seg][1]+(pts[seg+1][1]-pts[seg][1])*sf;
-      const sc=project(wx,GAP*0.5,wy,vx,vw,vh);
+      const sc=project(wx,2.0,wy,vx,vw,vh); // just above C-chip
       if(!sc) continue;
       const [sx,sy]=sc;
       if(sx<vx-4||sx>vx+vw+4||sy<-4||sy>vh+4) continue;
-      const sz=Math.max(1.5, 2.5*fade);
-      sigCtx.fillStyle=`rgba(255,255,255,${fade*0.9})`;
+      const sz=Math.max(2, 3.5*fade);
+      // Shiny: bright white core with blue-white glow halo
+      const grd=sigCtx.createRadialGradient(sx-sz*0.3,sy-sz*0.3,0, sx,sy,sz*2.2);
+      grd.addColorStop(0,   `rgba(255,255,255,${fade})`);
+      grd.addColorStop(0.3, `rgba(200,230,255,${fade*0.9})`);
+      grd.addColorStop(0.7, `rgba(100,180,255,${fade*0.5})`);
+      grd.addColorStop(1,   `rgba(60,120,255,0)`);
+      sigCtx.fillStyle=grd;
       sigCtx.beginPath();
-      sigCtx.arc(sx,sy,sz,0,Math.PI*2);
+      sigCtx.arc(sx,sy,sz*2.2,0,Math.PI*2);
       sigCtx.fill();
     }
   }
