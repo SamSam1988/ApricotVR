@@ -83,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v49</div>
+  <div id="ver">v50</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -195,15 +195,13 @@ function project(wx,wz,wy,vx,vw,vh){
   return [vx+(cx2/cw+1)*0.5*vw, (1-cy2/cw)*0.5*vh];
 }
 
-function drawFire(vx,vw,vh){
+function drawFire(vx,vw,vh,eyeX,eyeY){
   if(!fireCanvas){
     fireCanvas=document.createElement('canvas');
     fireCanvas.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:5;';
     document.body.appendChild(fireCanvas);
     fireCtx=fireCanvas.getContext('2d');
   }
-  const eyeX=pos.x, eyeY=pos.y;
-
   // Q-chip glow spots
   for(const [cx,cy] of SQUID_SITES){
     const dist=Math.hypot(cx-eyeX,cy-eyeY);
@@ -326,7 +324,7 @@ function updateWaves(dt){
   waveTime += dt/1000; // seconds
 }
 
-function drawWaves(vx, vw, vh){
+function drawWaves(vx,vw,vh,eyeX,eyeY){
   if(!qubits.length) return;
   if(!waveCanvas){
     waveCanvas=document.createElement('canvas');
@@ -334,8 +332,6 @@ function drawWaves(vx, vw, vh){
     document.body.appendChild(waveCanvas);
     waveCtx=waveCanvas.getContext('2d');
   }
-  const eyeX=pos.x, eyeY=pos.y;
-
   for(const q of qubits){
     const dist=Math.hypot(q.cx-eyeX, q.cy-eyeY);
     if(dist>WAVE_VIS) continue;
@@ -431,7 +427,7 @@ function updateSignals(dt){
   sigTime = (sigTime + SIG_SPEED*dt) % 1;
 }
 
-function drawSignals(vx, vw, vh){
+function drawSignals(vx,vw,vh,eyeX,eyeY){
   if(!signalLines.length) return;
   if(!sigCanvas){
     sigCanvas=document.createElement('canvas');
@@ -444,8 +440,6 @@ function drawSignals(vx, vw, vh){
     sigCanvas.width=W; sigCanvas.height=H;
     sigCanvas.style.width=W+'px'; sigCanvas.style.height=H+'px';
   }
-  const eyeX=pos.x, eyeY=pos.y;
-
   for(const ln of signalLines){
     // Line midpoint for distance check
     const pts=ln.pts;
@@ -513,7 +507,7 @@ function drawSignals(vx, vw, vh){
 const RES_WAVE_FREQ = 1.5; // Hz visual frequency
 let resCanvas=null, resCtx=null;
 
-function drawResonators(vx, vw, vh){
+function drawResonators(vx,vw,vh,eyeX,eyeY){
   if(!resonatorData.length) return;
   if(!resCanvas){
     resCanvas=document.createElement('canvas');
@@ -526,7 +520,6 @@ function drawResonators(vx, vw, vh){
     resCanvas.width=W; resCanvas.height=H;
     resCanvas.style.width=W+'px'; resCanvas.style.height=H+'px';
   }
-  const eyeX=pos.x, eyeY=pos.y;
 
   for(let ri=0; ri<resonatorData.length; ri++){
     const res=resonatorData[ri];
@@ -827,10 +820,10 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   if(bL3)   drawFlat(bL3,   GAP, COL.nbTop);
   draw3D(bQBox,     COL.qbox);
   draw3D(bBumps,    COL.bump);
-  drawFire(vx, vw, vh);
-  drawWaves(vx, vw, vh);
-  drawSignals(vx, vw, vh);
-  drawResonators(vx, vw, vh);
+  drawFire(vx, vw, vh, EX, EZ);
+  drawWaves(vx, vw, vh, EX, EZ);
+  drawSignals(vx, vw, vh, EX, EZ);
+  drawResonators(vx, vw, vh, EX, EZ);
 }
 
 
