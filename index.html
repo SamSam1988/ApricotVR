@@ -76,7 +76,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v43</div>
+  <div id="ver">v44</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -91,6 +91,7 @@ canvas{display:block;}
     <div class="dval" id="dpos">0 , 0</div>
     <div class="dval" id="dhdg">HDG 180°</div>
     <div class="dval" id="dspd">100 µm/s</div>
+    <div class="dval" id="dbumps" style="color:#f88;">💥 0 hits</div>
     <canvas id="minimap" width="72" height="72" style="border:1px solid #0054ff;border-radius:3px;margin-top:2px;"></canvas>
   </div>
   <div id="controls">
@@ -104,6 +105,24 @@ canvas{display:block;}
   </div>
 </div>
 <script>
+// ── WAKE LOCK (prevent screen dimming) ────────────────
+let wakeLock = null;
+async function acquireWakeLock(){
+  try {
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{
+        // Re-acquire if released (e.g. tab was hidden)
+        setTimeout(acquireWakeLock, 1000);
+      });
+    }
+  } catch(e){ console.log('Wake lock not available:', e.message); }
+}
+// Re-acquire when tab becomes visible again
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible') acquireWakeLock();
+});
+
 // ── LANDSCAPE GUARD ──────────────────────────────────
 function checkLandscape(){
   const land=window.innerWidth>window.innerHeight;
@@ -903,7 +922,7 @@ function fly(ts){
               const a=Math.atan2(ny-by,nx-bx);
               nx=bx+(BRAD+PRAD+30)*Math.cos(a);
               ny=by+(BRAD+PRAD+30)*Math.sin(a);
-              hit=true;break;
+              doBumpHit(); break;
             }
           }
         }
@@ -920,12 +939,21 @@ function fly(ts){
   }
   requestAnimationFrame(fly);
 }
+let bumpHits=0;
+
 function doHit(){
   if(inHit)return;inHit=true;
+  // Count only bump hits (not wall hits) — called from bump collision block
   const f=document.getElementById('hit');
   f.style.display='block';
   if(navigator.vibrate)navigator.vibrate(60);
   setTimeout(()=>{f.style.display='none';inHit=false;},150);
+}
+function doBumpHit(){
+  bumpHits++;
+  document.getElementById('dbumps').textContent=`💥 ${bumpHits} hits`;
+  pitch=0; // reset pitch so we don't get stuck looking at floor
+  doHit();
 }
 
 // ── INPUT ─────────────────────────────────────────────
@@ -1025,6 +1053,8 @@ function togglePause(){
 function resetPos(){
   pos={x:START.x,y:START.y};yaw=START_YAW;pitch=0;
   gyroCalibrated=false;
+  bumpHits=0;
+  document.getElementById('dbumps').textContent='💥 0 hits';
 }
 function toggleFS(){
   if(!document.fullscreenElement){
@@ -1108,6 +1138,7 @@ async function init(){
   lp(100,'Ready!');
   setTimeout(()=>{
     document.getElementById('loading').style.display='none';
+    acquireWakeLock();
     requestAnimationFrame(fly);
   },200);
 }
