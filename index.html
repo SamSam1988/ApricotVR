@@ -10,17 +10,22 @@ body{background:#000;overflow:hidden;font-family:'Courier New',monospace;color:#
 canvas{display:block;}
 #ui{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;}
 #dashboard{
-  position:absolute;bottom:8px;left:18%;
-  background:rgba(0,4,20,0.82);border:1px solid #0054ff;
-  border-radius:6px;padding:5px 7px;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  transform:scale(0.72);transform-origin:bottom left;
+  position:absolute;bottom:10px;left:10px;
+  background:rgba(0,4,20,0.88);border:1px solid #0054ff;
+  border-radius:8px;padding:8px 10px;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  transition:all 0.3s;
 }
-.dval{font-size:10px;color:#4af;text-align:center;}
+#dashboard.mode3d{
+  bottom:auto;top:50%;left:14%;
+  transform:translateY(-50%) scale(0.62);
+  transform-origin:left center;
+  padding:5px 7px;gap:2px;
+}
+.dval{font-size:11px;color:#4af;text-align:center;}
 #controls{
-  position:absolute;bottom:8px;right:4%;
-  display:flex;flex-direction:column;gap:4px;pointer-events:all;
-  transform:scale(0.80);transform-origin:bottom right;
+  position:absolute;bottom:10px;right:10px;
+  display:flex;flex-direction:column;gap:5px;pointer-events:all;
 }
 .btn{
   background:rgba(0,10,40,0.92);border:1px solid #0054ff;color:#6af;
@@ -78,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v45</div>
+  <div id="ver">v46</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1071,15 +1076,11 @@ function toggle3D(){
   mode3D=!mode3D;
   document.getElementById('b3d').classList.toggle('on',mode3D);
   document.getElementById('vsep').style.display=mode3D?'block':'none';
-  // In 3D mode: hide speed buttons (no finger access), auto-enable gyro
+  document.getElementById('dashboard').classList.toggle('mode3d',mode3D);
   document.getElementById('bslow').style.display=mode3D?'none':'';
   document.getElementById('bfast').style.display=mode3D?'none':'';
   if(mode3D && !gyroOn) toggleGyro();
   cv.style.filter='none';
-  if(fireCanvas)  fireCanvas.style.filter='none';
-  if(waveCanvas)  waveCanvas.style.filter='none';
-  if(sigCanvas)   sigCanvas.style.filter='none';
-  if(resCanvas)   resCanvas.style.filter='none';
 }
 function chSpd(d){
   sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
