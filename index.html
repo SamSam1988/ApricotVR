@@ -83,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v50</div>
+  <div id="ver">v51</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -846,8 +846,13 @@ function render(){
   if(mode3D){
     const yr=yaw*Math.PI/180;
     const rx=Math.cos(yr), rz=-Math.sin(yr);
-    renderEye(ex-rx*ipd/2, ey, ez-rz*ipd/2, yaw, pc, 0,   W/2, H);
-    renderEye(ex+rx*ipd/2, ey, ez+rz*ipd/2, yaw, pc, W/2, W/2, H);
+    // Toe-in: each eye rotates inward by toe-in angle toward convergence point
+    // Convergence distance = 800um (where the action is)
+    // toe-in angle (deg) = atan(ipd/2 / convergenceDist) * 180/PI
+    const CONV_DIST = 800; // um
+    const toeIn = Math.atan2(ipd/2, CONV_DIST) * 180/Math.PI;
+    renderEye(ex-rx*ipd/2, ey, ez-rz*ipd/2, yaw+toeIn, pc, 0,   W/2, H);
+    renderEye(ex+rx*ipd/2, ey, ez+rz*ipd/2, yaw-toeIn, pc, W/2, W/2, H);
   } else {
     renderEye(ex, ey, ez, yaw, pc, 0, W, H);
   }
