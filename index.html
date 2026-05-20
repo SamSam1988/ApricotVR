@@ -83,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v52</div>
+  <div id="ver">v54</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -568,9 +568,216 @@ function drawResonators(vx,vw,vh,eyeX,eyeY){
   }
 }
 
+
+// ── CARACAL CAT TARGET ────────────────────────────────
+// Billboard sprite floating above the chip center
+// Detectable with Cardboard magnet (magnetometer spike)
+let catCanvas=null, catCtx=null;
+let catAlive=true, catHitTime=0, catScore=0;
+let catBobTime=0;
+// Cat world position — place above chip center at mid-altitude
+const CAT_X=CCX, CAT_Y=CCY, CAT_Z_BASE=GAP*0.5;
+const CAT_SIZE=600; // um — size of the cat billboard
+const CAT_HIT_DIST=800; // must be within this distance to shoot
+
+// Cat SVG as Image for Canvas2D rendering
+const catSVGStr=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" fill="none">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4488ff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0054ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Glow aura -->
+  <ellipse cx="100" cy="180" rx="70" ry="20" fill="url(#glow)" opacity="0.6"/>
+  
+  <!-- Body -->
+  <path d="M65 200 C55 170 50 145 55 130 C60 115 70 108 80 105 L80 185 Z" fill="#0054ff"/>
+  <path d="M135 200 C145 170 150 145 145 130 C140 115 130 108 120 105 L120 185 Z" fill="#0054ff"/>
+  <path d="M80 185 L80 105 C85 102 95 100 100 100 C105 100 115 102 120 105 L120 185 Z" fill="#0066ff"/>
+
+  <!-- Tail -->
+  <path d="M120 160 C145 155 165 145 170 130 C175 118 168 110 160 115 C155 118 152 128 145 135 C138 142 128 148 120 150 Z" fill="#0054ff"/>
+
+  <!-- Neck -->
+  <path d="M80 108 C82 98 85 90 90 85 L110 85 C115 90 118 98 120 108 Z" fill="#0066ff"/>
+
+  <!-- Head -->
+  <path d="M72 85 C70 65 75 45 100 40 C125 45 130 65 128 85 C125 95 115 100 100 100 C85 100 75 95 72 85 Z" fill="#0066ff"/>
+
+  <!-- Characteristic tufted ears -->
+  <path d="M78 62 C74 48 70 35 68 22 C72 24 78 30 82 38 C85 30 88 20 90 10 C93 20 93 35 90 48 Z" fill="#0054ff"/>
+  <path d="M122 62 C126 48 130 35 132 22 C128 24 122 30 118 38 C115 30 112 20 110 10 C107 20 107 35 110 48 Z" fill="#0054ff"/>
+  <!-- Inner ear -->
+  <path d="M80 58 C77 47 74 36 73 26 C76 28 80 33 83 40 C86 33 88 24 89 15 C91 24 91 37 89 48 Z" fill="#003db5"/>
+  <path d="M120 58 C123 47 126 36 127 26 C124 28 120 33 117 40 C114 33 112 24 111 15 C109 24 109 37 111 48 Z" fill="#003db5"/>
+
+  <!-- Face markings -->
+  <path d="M85 72 C87 68 90 66 93 67 C91 70 89 73 87 75 Z" fill="#003db5" opacity="0.7"/>
+  <path d="M115 72 C113 68 110 66 107 67 C109 70 111 73 113 75 Z" fill="#003db5" opacity="0.7"/>
+
+  <!-- Eyes — glowing amber/yellow for contrast -->
+  <ellipse cx="89" cy="72" rx="7" ry="6" fill="#ffcc00"/>
+  <ellipse cx="111" cy="72" rx="7" ry="6" fill="#ffcc00"/>
+  <ellipse cx="89" cy="72" rx="3.5" ry="5" fill="#1a0a00"/>
+  <ellipse cx="111" cy="72" rx="3.5" ry="5" fill="#1a0a00"/>
+  <!-- Eye shine -->
+  <ellipse cx="91" cy="70" rx="1.5" ry="1.5" fill="white" opacity="0.8"/>
+  <ellipse cx="113" cy="70" rx="1.5" ry="1.5" fill="white" opacity="0.8"/>
+
+  <!-- Nose -->
+  <path d="M97 83 C98 81 100 80 102 81 C101 83 100 84 99 84 Z" fill="#003db5"/>
+  <path d="M98 84 C99 86 100 87 101 86 C100 85 100 85 98 84 Z" fill="#003db5"/>
+
+  <!-- Whiskers -->
+  <line x1="100" y1="84" x2="72" y2="80" stroke="#88aaff" stroke-width="0.8" opacity="0.7"/>
+  <line x1="100" y1="84" x2="70" y2="86" stroke="#88aaff" stroke-width="0.8" opacity="0.7"/>
+  <line x1="100" y1="84" x2="128" y2="80" stroke="#88aaff" stroke-width="0.8" opacity="0.7"/>
+  <line x1="100" y1="84" x2="130" y2="86" stroke="#88aaff" stroke-width="0.8" opacity="0.7"/>
+
+  <!-- Cheek tufts (characteristic of caracal) -->
+  <path d="M73 82 C68 78 63 72 62 65 C67 68 72 74 75 80 Z" fill="#0054ff"/>
+  <path d="M127 82 C132 78 137 72 138 65 C133 68 128 74 125 80 Z" fill="#0054ff"/>
+
+  <!-- Paws -->
+  <ellipse cx="76" cy="200" rx="12" ry="7" fill="#0054ff"/>
+  <ellipse cx="124" cy="200" rx="12" ry="7" fill="#0054ff"/>
+  <!-- Toe lines -->
+  <line x1="70" y1="200" x2="70" y2="207" stroke="#003db5" stroke-width="1.2"/>
+  <line x1="76" y1="200" x2="76" y2="208" stroke="#003db5" stroke-width="1.2"/>
+  <line x1="82" y1="200" x2="82" y2="207" stroke="#003db5" stroke-width="1.2"/>
+  <line x1="118" y1="200" x2="118" y2="207" stroke="#003db5" stroke-width="1.2"/>
+  <line x1="124" y1="200" x2="124" y2="208" stroke="#003db5" stroke-width="1.2"/>
+  <line x1="130" y1="200" x2="130" y2="207" stroke="#003db5" stroke-width="1.2"/>
+
+  <!-- Chest fur markings -->
+  <path d="M88 105 C92 112 100 115 108 112 C104 108 100 106 96 107 Z" fill="#003db5" opacity="0.5"/>
+</svg>`;
+const catImg=new Image();
+catImg.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(catSVGStr);
+
+// Magnet detection via magnetometer spike in deviceorientation alpha
+let lastAlpha=null, magnetCooldown=0;
+window.addEventListener('deviceorientation', e=>{
+  const a=e.alpha??0;
+  if(lastAlpha!==null && magnetCooldown<=0){
+    const delta=Math.abs(a-lastAlpha);
+    if(delta>15 && delta<340){ // spike: sudden alpha jump = magnet click
+      onMagnetFire();
+      magnetCooldown=30; // frames cooldown
+    }
+  }
+  lastAlpha=a;
+  if(magnetCooldown>0) magnetCooldown--;
+},{passive:true});
+
+// Also detect via devicemotion (acceleration spike from magnet)
+window.addEventListener('devicemotion', e=>{
+  if(magnetCooldown>0) return;
+  const acc=e.accelerationIncludingGravity;
+  if(!acc) return;
+  const mag=Math.sqrt((acc.x||0)**2+(acc.y||0)**2+(acc.z||0)**2);
+  if(mag>25){ // strong jerk = magnet
+    onMagnetFire();
+    magnetCooldown=30;
+  }
+},{passive:true});
+
+function onMagnetFire(){
+  if(!catAlive) return;
+  // Check if looking at cat and close enough
+  const dist=Math.hypot(pos.x-CAT_X, pos.y-CAT_Y);
+  if(dist>CAT_HIT_DIST) return;
+  // Check if cat is roughly in center of view
+  // Project cat to screen and see if it's near center
+  catAlive=false;
+  catHitTime=Date.now();
+  catScore++;
+  if(navigator.vibrate) navigator.vibrate([100,50,100]);
+  // Respawn after 3 seconds at random position near qubit
+  setTimeout(()=>{
+    const q=qubits[Math.floor(Math.random()*qubits.length)];
+    if(q){ catPos.x=q.cx; catPos.y=q.cy; }
+    catAlive=true;
+  }, 3000);
+}
+const catPos={x:CAT_X, y:CAT_Y};
+
+let catOverlay=null, catOCtx=null;
+function drawCat(vx,vw,vh,eyeX,eyeY){
+  if(!catOverlay){
+    catOverlay=document.createElement('canvas');
+    catOverlay.style.cssText='position:fixed;top:0;left:0;pointer-events:none;z-index:7;';
+    document.body.appendChild(catOverlay);
+    catOCtx=catOverlay.getContext('2d');
+  }
+  const W=cv.width,H=cv.height;
+  if(catOverlay.width!==W||catOverlay.height!==H){
+    catOverlay.width=W; catOverlay.height=H;
+    catOverlay.style.width=W+'px'; catOverlay.style.height=H+'px';
+  }
+  catOCtx.clearRect(vx,0,vw,vh);
+  if(!catImg.complete) return;
+
+  catBobTime+=0.016;
+  const bobZ=CAT_Z_BASE+Math.sin(catBobTime*1.5)*15;
+
+  const dist=Math.hypot(catPos.x-eyeX, catPos.y-eyeY);
+  if(dist>2000) return;
+
+  const sc=project(catPos.x, bobZ, catPos.y, vx,vw,vh);
+  if(!sc) return;
+  const [sx,sy]=sc;
+  if(sx<vx-200||sx>vx+vw+200||sy<-200||sy>vh+200) return;
+
+  const fade=Math.min(1,(2000-dist)/1500);
+  // Scale: bigger when closer
+  const scale=Math.min(1,800/Math.max(100,dist))*fade;
+  const sw=CAT_SIZE*scale*0.4, sh=CAT_SIZE*scale*0.4*1.1;
+
+  catOCtx.save();
+  catOCtx.globalAlpha=fade;
+
+  if(!catAlive){
+    // Explosion effect
+    const t=(Date.now()-catHitTime)/3000;
+    catOCtx.globalAlpha=Math.max(0,(1-t)*fade);
+    // Score flash
+    catOCtx.fillStyle=`rgba(255,220,0,${(1-t)*fade})`;
+    catOCtx.font=`bold ${Math.floor(20+t*40)}px monospace`;
+    catOCtx.textAlign='center';
+    catOCtx.fillText(`+1  SHOT! 🎯`,sx,sy);
+    catOCtx.fillText(`Score: ${catScore}`,sx,sy+30);
+  } else {
+    // Glow ring when in range
+    if(dist<CAT_HIT_DIST){
+      const pulse=0.5+0.5*Math.sin(Date.now()*0.01);
+      catOCtx.beginPath();
+      catOCtx.arc(sx,sy+sh*0.1,sw*0.65,0,Math.PI*2);
+      catOCtx.strokeStyle=`rgba(255,80,80,${pulse*0.8})`;
+      catOCtx.lineWidth=3;
+      catOCtx.stroke();
+      // Crosshair
+      catOCtx.strokeStyle=`rgba(255,80,80,${pulse})`;
+      catOCtx.lineWidth=1.5;
+      catOCtx.beginPath();
+      catOCtx.moveTo(sx-sw*0.4,sy); catOCtx.lineTo(sx+sw*0.4,sy);
+      catOCtx.moveTo(sx,sy-sh*0.4); catOCtx.lineTo(sx,sy+sh*0.4);
+      catOCtx.stroke();
+    }
+    catOCtx.drawImage(catImg, sx-sw/2, sy-sh/2, sw, sh);
+    // Score counter above cat
+    catOCtx.fillStyle=`rgba(255,220,80,${fade})`;
+    catOCtx.font=`bold ${Math.floor(12*scale+8)}px monospace`;
+    catOCtx.textAlign='center';
+    catOCtx.fillText(`🎯 ${catScore}`,sx,sy-sh/2-8);
+  }
+  catOCtx.restore();
+}
+
 // ── STATE ─────────────────────────────────────────────
 let data=null, mode3D=false, gyroOn=false;
-let spd=100, sIdx=3;
+let spd=200, sIdx=4;
 const SPEEDS=[10,25,50,100,200,500,1000];
 let pos={...START};
 let yaw=START_YAW, pitch=0, inHit=false;
@@ -669,7 +876,7 @@ function rx(a,m){id(m);const c=Math.cos(a),s=Math.sin(a);m[5]=c;m[6]=-s;m[9]=s;m
 function tr(x,y,z,m){id(m);m[12]=x;m[13]=y;m[14]=z;return m;}
 const mP=m4(),mY=m4(),mX=m4(),mT=m4(),MVP=m4(),tmp=m4();
 function buildMVP(ex,ey,ez,yd,pd,fov,asp){
-  persp(fov,asp,0.5,120000,mP);
+  persp(fov,asp,0.1,120000,mP); // near=0.1um so bumps don't clip when close
   ry(-yd*Math.PI/180,mY); rx(-pd*Math.PI/180,mX); tr(-ex,-ey,-ez,mT);
   mul(mY,mT,tmp);mul(mX,tmp,tmp);mul(mP,tmp,MVP);
 }
@@ -805,7 +1012,7 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   gl.clearColor(...COL.bg);
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);
-  buildMVP(ex,ey,ez,yd,pd,70,vw/vh);
+  buildMVP(ex,ey,ez,yd,pd,90,vw/vh); // wide FOV = immersive, towers loom
   EX=ex;EY=ey;EZ=ez;
   // forward vector (world: X=chipX, Y=alt, Z=chipY)
   const yr=yd*Math.PI/180,pr=pd*Math.PI/180;
@@ -824,6 +1031,7 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
   drawWaves(vx, vw, vh, EX, EZ);
   drawSignals(vx, vw, vh, EX, EZ);
   drawResonators(vx, vw, vh, EX, EZ);
+  drawCat(vx,vw,vh,EX,EZ);
 }
 
 
@@ -834,7 +1042,7 @@ function render(){
   const pc=Math.max(-65,Math.min(65,pitch));
 
   // Clear and resize all Canvas2D overlays once before both eyes
-  for(const oc of [fireCanvas,waveCanvas,sigCanvas,resCanvas]){
+  for(const oc of [fireCanvas,waveCanvas,sigCanvas,resCanvas,catOverlay]){
     if(!oc) continue;
     if(oc.width!==W||oc.height!==H){
       oc.width=W; oc.height=H;
@@ -849,7 +1057,7 @@ function render(){
     // Toe-in: each eye rotates inward by toe-in angle toward convergence point
     // Convergence distance = 800um (where the action is)
     // toe-in angle (deg) = atan(ipd/2 / convergenceDist) * 180/PI
-    const CONV_DIST = 800; // um
+    const CONV_DIST = 200; // um — converge right at the bumps
     const toeIn = Math.atan2(ipd/2, CONV_DIST) * 180/Math.PI;
     renderEye(ex-rx*ipd/2, ey, ez-rz*ipd/2, yaw+toeIn, pc, 0,   W/2, H);
     renderEye(ex+rx*ipd/2, ey, ez+rz*ipd/2, yaw-toeIn, pc, W/2, W/2, H);
@@ -1081,8 +1289,8 @@ function toggle3D(){
   if(mode3D && !gyroOn) toggleGyro();
   cv.style.filter='none';
 }
-const IPD_STEPS=[200,300,400,500,600,700,800,900,1000,1200,1500,2000,3000,5000];
-let ipdIdx=3; // start at 500
+const IPD_STEPS=[20,30,40,50,60,70,80,100,120,150,200,300,500];
+let ipdIdx=4; // start at 60um — roller-coaster scale
 function chIPD(d){
   ipdIdx=Math.max(0,Math.min(IPD_STEPS.length-1,ipdIdx+d));
   ipd=IPD_STEPS[ipdIdx];
