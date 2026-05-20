@@ -83,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v47</div>
+  <div id="ver">v48</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -109,6 +109,8 @@ canvas{display:block;}
     <div class="btn" id="bgy" onclick="toggleGyro()">✈ GYRO</div>
     <div class="btn" id="bslow" onclick="chSpd(-1)">◂ SLOW</div>
     <div class="btn" id="bfast" onclick="chSpd(1)">FAST ▸</div>
+    <div class="btn" id="bipd-" onclick="chIPD(-1)" style="display:none">👁 IPD-</div>
+    <div class="btn" id="bipd+" onclick="chIPD(1)"  style="display:none">👁 IPD+</div>
   </div>
 </div>
 <script>
@@ -832,6 +834,7 @@ function renderEye(ex,ey,ez,yd,pd,vx,vw,vh){
 }
 
 
+let ipd = 100; // um — tunable
 function render(){
   const W=cv.width,H=cv.height;
   const ex=pos.x, ey=GAP/2, ez=pos.y;
@@ -848,11 +851,10 @@ function render(){
   }
 
   if(mode3D){
-    const IPD=250;
     const yr=yaw*Math.PI/180;
     const rx=Math.cos(yr), rz=-Math.sin(yr);
-    renderEye(ex-rx*IPD/2, ey, ez-rz*IPD/2, yaw, pc, 0,   W/2, H);
-    renderEye(ex+rx*IPD/2, ey, ez+rz*IPD/2, yaw, pc, W/2, W/2, H);
+    renderEye(ex-rx*ipd/2, ey, ez-rz*ipd/2, yaw, pc, 0,   W/2, H);
+    renderEye(ex+rx*ipd/2, ey, ez+rz*ipd/2, yaw, pc, W/2, W/2, H);
   } else {
     renderEye(ex, ey, ez, yaw, pc, 0, W, H);
   }
@@ -1076,8 +1078,18 @@ function toggle3D(){
   document.getElementById('dashboard').classList.toggle('mode3d',mode3D);
   document.getElementById('bslow').style.display=mode3D?'none':'';
   document.getElementById('bfast').style.display=mode3D?'none':'';
+  document.getElementById('bipd-').style.display=mode3D?'':'none';
+  document.getElementById('bipd+').style.display=mode3D?'':'none';
   if(mode3D && !gyroOn) toggleGyro();
   cv.style.filter='none';
+}
+const IPD_STEPS=[20,50,100,150,200,300,400,500];
+let ipdIdx=2; // start at 100
+function chIPD(d){
+  ipdIdx=Math.max(0,Math.min(IPD_STEPS.length-1,ipdIdx+d));
+  ipd=IPD_STEPS[ipdIdx];
+  document.getElementById('bipd-').textContent=`👁 ${ipd}µm`;
+  document.getElementById('bipd+').textContent=`👁 ${ipd}µm`;
 }
 function chSpd(d){
   sIdx=Math.max(0,Math.min(SPEEDS.length-1,sIdx+d));
