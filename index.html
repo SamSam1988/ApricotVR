@@ -18,7 +18,7 @@ canvas{display:block;}
 }
 #dashboard.mode3d{
   bottom:auto;top:50%;left:14%;
-  transform:translateY(-50%) scale(0.62);
+  transform:translateY(-50%) scale(0.46);
   transform-origin:left center;
   padding:5px 7px;gap:2px;
 }
@@ -83,7 +83,7 @@ canvas{display:block;}
 <canvas id="c"></canvas>
 <div id="gdbg"></div>
 <div id="ui">
-  <div id="ver">v46</div>
+  <div id="ver">v47</div>
   <div id="dashboard">
     <!-- Qarakal logo mark -->
     <svg width="72" height="72" viewBox="0 0 290 330" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -200,12 +200,6 @@ function drawFire(vx,vw,vh){
     document.body.appendChild(fireCanvas);
     fireCtx=fireCanvas.getContext('2d');
   }
-  const W=cv.width,H=cv.height;
-  if(fireCanvas.width!==W||fireCanvas.height!==H){
-    fireCanvas.width=W; fireCanvas.height=H;
-    fireCanvas.style.width=W+'px'; fireCanvas.style.height=H+'px';
-  }
-  fireCtx.clearRect(vx,0,vw,vh);
   const eyeX=pos.x, eyeY=pos.y;
 
   // Q-chip glow spots
@@ -338,12 +332,6 @@ function drawWaves(vx, vw, vh){
     document.body.appendChild(waveCanvas);
     waveCtx=waveCanvas.getContext('2d');
   }
-  const W=cv.width,H=cv.height;
-  if(waveCanvas.width!==W||waveCanvas.height!==H){
-    waveCanvas.width=W; waveCanvas.height=H;
-    waveCanvas.style.width=W+'px'; waveCanvas.style.height=H+'px';
-  }
-  waveCtx.clearRect(vx,0,vw,vh);
   const eyeX=pos.x, eyeY=pos.y;
 
   for(const q of qubits){
@@ -454,7 +442,6 @@ function drawSignals(vx, vw, vh){
     sigCanvas.width=W; sigCanvas.height=H;
     sigCanvas.style.width=W+'px'; sigCanvas.style.height=H+'px';
   }
-  sigCtx.clearRect(vx,0,vw,vh);
   const eyeX=pos.x, eyeY=pos.y;
 
   for(const ln of signalLines){
@@ -537,7 +524,6 @@ function drawResonators(vx, vw, vh){
     resCanvas.width=W; resCanvas.height=H;
     resCanvas.style.width=W+'px'; resCanvas.style.height=H+'px';
   }
-  resCtx.clearRect(vx,0,vw,vh);
   const eyeX=pos.x, eyeY=pos.y;
 
   for(let ri=0; ri<resonatorData.length; ri++){
@@ -850,8 +836,19 @@ function render(){
   const W=cv.width,H=cv.height;
   const ex=pos.x, ey=GAP/2, ez=pos.y;
   const pc=Math.max(-65,Math.min(65,pitch));
+
+  // Clear and resize all Canvas2D overlays once before both eyes
+  for(const oc of [fireCanvas,waveCanvas,sigCanvas,resCanvas]){
+    if(!oc) continue;
+    if(oc.width!==W||oc.height!==H){
+      oc.width=W; oc.height=H;
+      oc.style.width=W+'px'; oc.style.height=H+'px';
+    }
+    oc.getContext('2d').clearRect(0,0,W,H);
+  }
+
   if(mode3D){
-    const IPD=250; // um — interpupillary distance scaled to chip world
+    const IPD=250;
     const yr=yaw*Math.PI/180;
     const rx=Math.cos(yr), rz=-Math.sin(yr);
     renderEye(ex-rx*IPD/2, ey, ez-rz*IPD/2, yaw, pc, 0,   W/2, H);
